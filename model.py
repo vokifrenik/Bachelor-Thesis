@@ -86,4 +86,67 @@ for steps in range(num_iterations):
 # Close the environment        
 env.close()
 
+# Wrappers to vectorize and stack frames
+from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 
+# RL algorithms in the library
+from stable_baselines3 import DQN, A2C, DDPG, PPO, SAC, TD3
+
+# Import Frame Stacker Wrapper and GrayScaling Wrapper
+from gym.wrappers import GrayScaleObservation
+
+
+# Use the wrappers
+
+# Grayscale
+env = GrayScaleObservation(env, keep_dim=True)
+
+# Vectorize environment - call the environment in sequence on the current Python process
+env =  DummyVecEnv([lambda: env])
+
+# Stack frames
+env = VecFrameStack(env, n_stack = 4, channels_order='last')
+
+
+# Explore the new environment
+
+# Reset environment
+env.reset()
+
+# Sample one random action
+action = env.action_space.sample()
+
+# One agent-environment iteration 
+next_state, reward, done, info = env.step([5])
+
+# Print results
+print('The shape of the states is {}'.format(next_state.shape))
+
+print('The reward for this iteration is {}'.format(reward))
+
+print('The done flag in this iteration is {}'.format(done))
+
+print('Here is more information about this iteration {}'.format(info))
+
+
+# Visualize the new state, i.e, past 4 frames
+plt.figure(figsize=(20,16))
+for idx in range(next_state.shape[3]):
+    plt.subplot(1,4,idx+1)
+    plt.imshow(next_state[0][:,:,idx])
+plt.show()
+
+
+# Create and train a model
+model = PPO(policy = 'CnnPolicy', env = env, verbose = 1)
+model.learn(total_timesteps = 1000)
+
+
+# Start the game 
+state = env.reset()
+# Loop through the game
+while True: 
+    
+    action, _ = model.predict(state)
+    state, reward, done, info = env.step(action)
+    env.render()

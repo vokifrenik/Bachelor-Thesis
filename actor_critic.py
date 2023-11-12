@@ -22,10 +22,10 @@ class GeneralNetwork(nn.Module):
 
         # Modify the fully connected layers based on output_dims
         if output_dims == 2:
-            self.fc1 = nn.Linear(57 * 61 * fc2_dims, fc1_dims)
+            self.fc1 = nn.Linear(57 * 61, fc1_dims)
             self.fc2 = nn.Linear(fc1_dims, output_dims)
         elif output_dims == 1:
-            self.fc1 = nn.Linear(57 * 61 * fc2_dims, fc2_dims)
+            self.fc1 = nn.Linear(57 * 61, fc2_dims)
             self.fc2 = nn.Linear(fc2_dims, output_dims)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
@@ -33,16 +33,29 @@ class GeneralNetwork(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
+        print(x.shape)
         x = F.relu(self.conv1(x))
+        print("after cv1", x.shape)
         x = self.pool1(x)
+        print("after pl1", x.shape)
         x = F.relu(self.conv2(x))
+        print("after cv2", x.shape)
         x = self.pool2(x)
+        print("after pl2", x.shape)
          # Flatten the output from conv layers
         x = x.view(x.size(0), -1)  
+        print("after flattening", x.shape)
        
         x_fc1 = F.relu(self.fc1(x))
+        print("after fc1", x.shape)
         x_fc2 = self.fc2(x_fc1)
-        return x_fc2
+        print("after fc2", x.shape)
+
+         # Split the output into mu and sigma
+        mu, log_sigma = T.chunk(x_fc2, 2, dim=-1)
+        sigma = T.exp(log_sigma)
+
+        return mu, sigma
     
 
 class Agent(object):
@@ -57,9 +70,19 @@ class Agent(object):
         mu, sigma = self.actor.forward(state)
         sigma = T.exp(sigma)
         action_probs = T.distributions.Normal(mu, sigma)
-        probs = action_probs.sample(sample_shape=T.Size([self.actor.output_dims]))  
-        self.log_probs = action_probs.log_probs(probs).to(self.actor.device)               
-        return probs.item()
+
+        # Sample actions and get their probabilities
+        sample_shape = T.Size([self.actor.output_dims])
+        sampled_actions = action_probs.sample(sample_shape).squeeze()
+        self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
+
+        # Choose the action with the highest probability
+        action = T.argmax(self.log_probs).item()
+
+        # If you want to sample an action, uncomment the next line:
+        # action = T.multinomial(self.log_probs.exp(), 1).item()
+        return action
+
 
     def learn(self, state, reward, n_state, done):
         self.actor.optimizer.zero_grad()

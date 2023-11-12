@@ -33,29 +33,24 @@ class GeneralNetwork(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        print(x.shape)
         x = F.relu(self.conv1(x))
-        print("after cv1", x.shape)
         x = self.pool1(x)
-        print("after pl1", x.shape)
         x = F.relu(self.conv2(x))
-        print("after cv2", x.shape)
         x = self.pool2(x)
-        print("after pl2", x.shape)
          # Flatten the output from conv layers
-        x = x.view(x.size(0), -1)  
-        print("after flattening", x.shape)
-       
+        x = x.view(x.size(0), -1)    
         x_fc1 = F.relu(self.fc1(x))
-        print("after fc1", x.shape)
         x_fc2 = self.fc2(x_fc1)
-        print("after fc2", x.shape)
 
-         # Split the output into mu and sigma
-        mu, log_sigma = T.chunk(x_fc2, 2, dim=-1)
-        sigma = T.exp(log_sigma)
+        if x_fc2.size(-1) == 1:
+            # Handle the case where x_fc2 has only one value
+            mu, log_sigma = x_fc2, None
+        else:
+            # Unpack the result of chunking
+            mu, log_sigma = T.chunk(x_fc2, 2, dim=-1)
 
-        return mu, sigma
+        return mu, log_sigma
+
     
 
 class Agent(object):
@@ -74,10 +69,17 @@ class Agent(object):
         # Sample actions and get their probabilities
         sample_shape = T.Size([self.actor.output_dims])
         sampled_actions = action_probs.sample(sample_shape).squeeze()
-        self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
+
+        # Ensure mu has the same size as sampled_actions for broadcasting
+        mu = mu.unsqueeze(-1).expand(mu.shape[0], mu.shape[1], sampled_actions.size(-1))
+
+        self.log_probs = action_probs.log_prob(sampled_actions.unsqueeze(-1)).to(self.actor.device)
 
         # Choose the action with the highest probability
-        action = T.argmax(self.log_probs).item()
+        action = T.argmax(self.log_probs.view(-1), dim=-1).item()
+        num_actions = 7  # Assuming 7 possible actions
+        action = max(0, min(action, num_actions - 1))
+        
 
         # If you want to sample an action, uncomment the next line:
         # action = T.multinomial(self.log_probs.exp(), 1).item()
@@ -88,16 +90,20 @@ class Agent(object):
         self.actor.optimizer.zero_grad()
         self.critic.optimizer.zero_grad()
 
-        n_state_value = self.critic.forward(n_state)
-        state_value = self.critic.forward(state)
+        n_state_value, _ = self.critic.forward(n_state)
+        state_value, _ = self.critic.forward(state)
 
         reward = T.tensor(reward, dtype=float).to(self.actor.device)
+
         delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
 
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
-        (actor_loss + critic_loss).backward()
+        total_loss = actor_loss.mean() + critic_loss.mean()
+
+        # Perform the backward pass on the scalar total_loss
+        total_loss.backward()
 
         self.actor.optimizer.step()
         self.critic.optimizer.step()

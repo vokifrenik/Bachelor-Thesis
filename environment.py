@@ -37,7 +37,7 @@ print(input_dims)
 agent = Agent(0.000005, 0.000001, input_dims=input_dims, gamma=0.99, n_actions=7, layer1_size=64, layer2_size=64)
 
 score_history = []
-num_episodes = 100
+num_episodes = 500
 
 for i in range(num_episodes):
     done = False
@@ -51,7 +51,10 @@ for i in range(num_episodes):
     state = T.tensor(state, dtype=T.float32).to(agent.actor.device)
 
     while not done:
+        env.render()
+
         action = agent.choose_action(state)
+        print("action", action)
         next_state, reward, done, info = env.step(action)
 
         # Convert next_state to a single NumPy array
@@ -64,6 +67,8 @@ for i in range(num_episodes):
 
         agent.learn(state, reward, next_state, done)
         state = next_state
+
+    env.close()
 
     score_history.append(score)
     print('episode ', i, 'score %.2f' % score, '100 game average %.2f' % np.mean(score_history[-100:]))

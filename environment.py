@@ -34,10 +34,10 @@ input_dims = input_tensor.size()[2:]
 print(input_dims)
 
 # Create the Agent with the correct input_dims
-agent = Agent(0.000005, 0.000001, input_dims=input_dims, gamma=0.99, n_actions=7, layer1_size=64, layer2_size=64)
+agent = Agent(0.000005, 0.000001, input_dims=input_dims, gamma=0.99, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64)
 
 score_history = []
-num_episodes = 500
+num_episodes = 10
 
 for i in range(num_episodes):
     done = False
@@ -56,6 +56,7 @@ for i in range(num_episodes):
         action = agent.choose_action(state)
         print("action", action)
         next_state, reward, done, info = env.step(action)
+        print("reward", reward)
 
         # Convert next_state to a single NumPy array
         next_state = np.array(next_state)

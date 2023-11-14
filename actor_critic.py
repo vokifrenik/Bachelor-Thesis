@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch as T
+import random as rand
 
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
@@ -16,16 +17,20 @@ class GeneralNetwork(nn.Module):
 
         # Convolutional layers with pooling
         self.conv1 = nn.Conv2d(input_dims[0], fc1_dims, kernel_size=3)
+        self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.conv2 = nn.Conv2d(fc1_dims, fc2_dims, kernel_size=5)
+        self.relu2 = nn.ReLU()
         self.pool2 = nn.MaxPool2d(kernel_size=2)
 
         # Modify the fully connected layers based on output_dims
         if output_dims == 2:
             self.fc1 = nn.Linear(57 * 61, fc1_dims)
+            self.relu_fc1 = nn.ReLU()
             self.fc2 = nn.Linear(fc1_dims, output_dims)
         elif output_dims == 1:
             self.fc1 = nn.Linear(57 * 61, fc2_dims)
+            self.relu_fc1 = nn.ReLU()
             self.fc2 = nn.Linear(fc2_dims, output_dims)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
@@ -33,31 +38,34 @@ class GeneralNetwork(nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
+        x = self.relu1(self.conv1(x))
         x = self.pool1(x)
-        x = F.relu(self.conv2(x))
+        x = self.relu2(self.conv2(x))
         x = self.pool2(x)
-         # Flatten the output from conv layers
+        # Flatten the output from conv layers
         x = x.view(x.size(0), -1)    
-        x_fc1 = F.relu(self.fc1(x))
+        x_fc1 = self.relu_fc1(self.fc1(x))
         x_fc2 = self.fc2(x_fc1)
 
         if x_fc2.size(-1) == 1:
             # Handle the case where x_fc2 has only one value
             mu, log_sigma = x_fc2, None
+            print("here")
         else:
             # Unpack the result of chunking
             mu, log_sigma = T.chunk(x_fc2, 2, dim=-1)
+            print("there")
 
         return mu, log_sigma
-
     
 
 class Agent(object):
-    def __init__(self, alpha, beta, input_dims, gamma=0.95, n_actions=7, layer1_size=64, layer2_size=64):
+    def __init__(self, alpha, beta, input_dims, gamma=0.95, epsilon=0.1, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
         self.log_probs = None
         self.gamma = gamma
+        self.epsilon = epsilon
+        self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims, layer1_size, layer2_size, output_dims=2)
         self.critic = GeneralNetwork(beta, input_dims, layer1_size, layer2_size, output_dims=1)
 
@@ -73,15 +81,20 @@ class Agent(object):
         # Ensure mu has the same size as sampled_actions for broadcasting
         mu = mu.unsqueeze(-1).expand(mu.shape[0], mu.shape[1], sampled_actions.size(-1))
 
+        # Compute the log probabilities of the actions
         self.log_probs = action_probs.log_prob(sampled_actions.unsqueeze(-1)).to(self.actor.device)
 
-        # Choose the action with the highest probability
-        action = T.argmax(self.log_probs.view(-1), dim=-1).item()
-        num_actions = 7  # Assuming 7 possible actions
-        action = max(0, min(action, num_actions - 1))
+        # Pick action with highest probability of being chosen
+        if rand.uniform(0, 1) > self.epsilon:
+            action = T.argmax(self.log_probs.view(-1), dim=-1).item()
+            num_actions = 7  
+            action = max(0, min(action, num_actions - 1))
+        else:
+            # Choose a random action
+            num_actions = 7  
+            action = rand.randint(0, num_actions - 1)
         
-
-        # If you want to sample an action, uncomment the next line:
+        # To sample an action
         # action = T.multinomial(self.log_probs.exp(), 1).item()
         return action
 
@@ -94,8 +107,8 @@ class Agent(object):
         state_value, _ = self.critic.forward(state)
 
         reward = T.tensor(reward, dtype=float).to(self.actor.device)
-
-        delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
+        
+        delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value 
 
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2

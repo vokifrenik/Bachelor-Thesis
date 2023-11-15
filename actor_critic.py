@@ -17,6 +17,7 @@ class GeneralNetwork(nn.Module):
 
         # Convolutional layers with pooling
         self.conv1 = nn.Conv2d(input_dims[0], fc1_dims, kernel_size=3)
+        print("input_dims[0]", input_dims[0])
         self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.conv2 = nn.Conv2d(fc1_dims, fc2_dims, kernel_size=5)
@@ -27,11 +28,11 @@ class GeneralNetwork(nn.Module):
         if output_dims == 2:
             self.fc1 = nn.Linear(57 * 61, fc1_dims)
             self.relu_fc1 = nn.ReLU()
-            self.fc2 = nn.Linear(fc1_dims, output_dims)
+            self.fc2 = nn.Linear(fc1_dims, output_dims*2)
         elif output_dims == 1:
             self.fc1 = nn.Linear(57 * 61, fc2_dims)
             self.relu_fc1 = nn.ReLU()
-            self.fc2 = nn.Linear(fc2_dims, output_dims)
+            self.fc2 = nn.Linear(fc2_dims, output_dims*2)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
         self.device = 'cpu'
@@ -50,17 +51,17 @@ class GeneralNetwork(nn.Module):
         if x_fc2.size(-1) == 1:
             # Handle the case where x_fc2 has only one value
             mu, log_sigma = x_fc2, None
-            print("here")
         else:
             # Unpack the result of chunking
             mu, log_sigma = T.chunk(x_fc2, 2, dim=-1)
-            print("there")
+        
+        mu = mu.squeeze(-1)  # Remove the singleton dimension
 
         return mu, log_sigma
     
 
 class Agent(object):
-    def __init__(self, alpha, beta, input_dims, gamma=0.95, epsilon=0.1, n_actions=7, layer1_size=64, layer2_size=64):
+    def __init__(self, alpha, beta, input_dims, gamma=0.95, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
         self.log_probs = None
         self.gamma = gamma
@@ -70,34 +71,34 @@ class Agent(object):
         self.critic = GeneralNetwork(beta, input_dims, layer1_size, layer2_size, output_dims=1)
 
     def choose_action(self, state):
-        mu, sigma = self.actor.forward(state)
-        sigma = T.exp(sigma)
+        mu, log_sigma = self.actor.forward(state)
+        sigma = T.exp(log_sigma)
+
+        print("mu", mu.size())
+        print("sigma", sigma.size())
+
+        # Sample from the normal distribution
         action_probs = T.distributions.Normal(mu, sigma)
+        print(action_probs)
 
-        # Sample actions and get their probabilities
-        sample_shape = T.Size([self.actor.output_dims])
-        sampled_actions = action_probs.sample(sample_shape).squeeze()
+        # Sample only once and let the distribution broadcast across the batch dimension
+        sampled_actions = action_probs.sample()
 
-        # Ensure mu has the same size as sampled_actions for broadcasting
-        mu = mu.unsqueeze(-1).expand(mu.shape[0], mu.shape[1], sampled_actions.size(-1))
+        # Use torch.clamp to ensure the sampled action values are within [0, 6]
+        sampled_actions = T.clamp(sampled_actions, 0, 6)
 
-        # Compute the log probabilities of the actions
-        self.log_probs = action_probs.log_prob(sampled_actions.unsqueeze(-1)).to(self.actor.device)
+        # Calculate log probabilities for the sampled actions
+        self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
 
-        # Pick action with highest probability of being chosen
-        if rand.uniform(0, 1) > self.epsilon:
-            action = T.argmax(self.log_probs.view(-1), dim=-1).item()
-            num_actions = 7  
-            action = max(0, min(action, num_actions - 1))
+        # Epsilon-greedy strategy
+        if rand.random() < self.epsilon:
+            action = rand.randrange(self.n_actions)
         else:
-            # Choose a random action
-            num_actions = 7  
-            action = rand.randint(0, num_actions - 1)
-        
-        # To sample an action
-        # action = T.multinomial(self.log_probs.exp(), 1).item()
-        return action
+            # Squeeze the mu tensor to get dimensions [64, 2] before finding the argmax
+            action = T.argmax(mu.squeeze(-1), dim=-1).item()
 
+        print("action", action)
+        return action
 
     def learn(self, state, reward, n_state, done):
         self.actor.optimizer.zero_grad()
@@ -108,15 +109,24 @@ class Agent(object):
 
         reward = T.tensor(reward, dtype=float).to(self.actor.device)
         
-        delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value 
+        delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
+        delta = delta.view(-1, 1, 1)  
+        delta = delta.repeat(1, 7, 2)
 
+        print("delta", delta.size())
+        print("log_probs", self.log_probs.size())
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
         total_loss = actor_loss.mean() + critic_loss.mean()
+        print("total_loss", total_loss)
 
         # Perform the backward pass on the scalar total_loss
         total_loss.backward()
+
+        # Clip gradients to prevent exploding gradients
+        T.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
+        T.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
 
         self.actor.optimizer.step()
         self.critic.optimizer.step()

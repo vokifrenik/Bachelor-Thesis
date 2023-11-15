@@ -31,7 +31,7 @@ input_tensor = T.stack(input_tuple)
 # Get the dimensions of the state space
 input_dims = input_tensor.size()[2:]
 
-print(input_dims)
+#print(input_dims)
 
 # Create the Agent with the correct input_dims
 agent = Agent(0.000005, 0.000001, input_dims=input_dims, gamma=0.99, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64)
@@ -49,6 +49,7 @@ for i in range(num_episodes):
 
     # Convert the NumPy array to a PyTorch tensor
     state = T.tensor(state, dtype=T.float32).to(agent.actor.device)
+    print("state", state.size())
 
     while not done:
         env.render()

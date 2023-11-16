@@ -17,24 +17,17 @@ env = JoypadSpace(env, SIMPLE_MOVEMENT)
 env = GrayScaleObservation(env, keep_dim=False)
 env = FrameStack(env, 4)
 
+'''
 state = env.reset()
-
 # Convert the state to a single NumPy array
 state = np.array(state)
-
 # Convert the NumPy array to a PyTorch tensor
 state = T.tensor(state, dtype=T.float32).to('cpu')
-state = state.unsqueeze(0)
-input_tuple = (state,)
-input_tensor = T.stack(input_tuple)
-
-# Get the dimensions of the state space
-input_dims = input_tensor.size()[2:]
-
-#print(input_dims)
+print("state", state.size())
+'''
 
 # Create the Agent with the correct input_dims
-agent = Agent(0.000005, 0.000001, input_dims=input_dims, gamma=0.99, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64)
+agent = Agent(0.000005, 0.000001, input_dims=4, gamma=0.99, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64)
 
 score_history = []
 num_episodes = 10
@@ -43,21 +36,22 @@ for i in range(num_episodes):
     done = False
     score = 0
     state = env.reset()
+    
 
     # Convert state to a single NumPy array
     state = np.array(state)
-
+    
     # Convert the NumPy array to a PyTorch tensor
     state = T.tensor(state, dtype=T.float32).to(agent.actor.device)
-    print("state", state.size())
+    #print("state", state.size())
 
     while not done:
         env.render()
 
         action = agent.choose_action(state)
-        print("action", action)
+        #print("action", action)
         next_state, reward, done, info = env.step(action)
-        print("reward", reward)
+        #print("reward", reward)
 
         # Convert next_state to a single NumPy array
         next_state = np.array(next_state)

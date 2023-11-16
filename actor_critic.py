@@ -54,8 +54,6 @@ class GeneralNetwork(nn.Module):
 
         return mu, log_sigma
 
-
-
    def forward_critic(self, x):
         x = self.relu1(self.conv1(x))
         x = self.pool1(x)
@@ -68,8 +66,6 @@ class GeneralNetwork(nn.Module):
 
         return value
     
-
-
 class Agent(object):
     def __init__(self, alpha, beta, input_dims, gamma=0.95, epsilon=0.3, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
@@ -86,16 +82,13 @@ class Agent(object):
 
         # Sample from the normal distribution
         action_probs = T.distributions.Normal(mu, sigma)
-        # plot the distribution
+
+        # Plot the distribution
         #plt.plot(action_probs.sample().numpy())
         #plt.show()
 
         # Sample only once and let the distribution broadcast across the batch dimension
         sampled_actions = action_probs.sample()
-
-        # Use torch.clamp to ensure the sampled action values are within [0, 6]
-        #sampled_actions = T.clamp(sampled_actions, 0, 6)
-        print("sampled_actions", sampled_actions)
 
         # Calculate log probabilities for the sampled actions
         self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
@@ -107,7 +100,7 @@ class Agent(object):
             # Squeeze the mu tensor to get dimensions [64, 2] before finding the argmax
             action = T.argmax(mu.squeeze(-1), dim=-1).item()
 
-        # divide action by 10 to get the correct action and floor the value
+        # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
         print("action", action)
         return action

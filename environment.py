@@ -47,9 +47,7 @@ for i in range(num_episodes):
         env.render()
 
         action = agent.choose_action(state)
-        #print("action", action)
         next_state, reward, done, info = env.step(action)
-        #print("reward", reward)
 
         # Convert next_state to a single NumPy array
         next_state = np.array(next_state)

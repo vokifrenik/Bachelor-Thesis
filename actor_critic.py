@@ -84,14 +84,11 @@ class Agent(object):
         mu, log_sigma = self.actor.forward_actor(state)
         sigma = T.exp(log_sigma)
 
-        #print("mu", mu)
-        #print("sigma", sigma)
-
         # Sample from the normal distribution
         action_probs = T.distributions.Normal(mu, sigma)
         # plot the distribution
-        plt.plot(action_probs.sample().numpy())
-        plt.show()
+        #plt.plot(action_probs.sample().numpy())
+        #plt.show()
 
         # Sample only once and let the distribution broadcast across the batch dimension
         sampled_actions = action_probs.sample()
@@ -127,16 +124,12 @@ class Agent(object):
         reward = T.tensor(reward, dtype=float).to(self.actor.device)
         
         delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
-        delta = delta.view(-1, 1, 1)  
-        delta = delta.repeat(1, 7, 2)
-
-        #print("delta", delta.size())
-        #print("log_probs", self.log_probs.size())
+        
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
         total_loss = actor_loss.mean() + critic_loss.mean()
-        #print("total_loss", total_loss)
+        print("total_loss", total_loss)
 
         # Perform the backward pass on the scalar total_loss
         total_loss.backward()

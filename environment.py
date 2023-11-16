@@ -37,13 +37,11 @@ for i in range(num_episodes):
     score = 0
     state = env.reset()
     
-
     # Convert state to a single NumPy array
     state = np.array(state)
     
     # Convert the NumPy array to a PyTorch tensor
     state = T.tensor(state, dtype=T.float32).to(agent.actor.device)
-    #print("state", state.size())
 
     while not done:
         env.render()
@@ -60,6 +58,7 @@ for i in range(num_episodes):
         next_state = T.tensor(next_state, dtype=T.float32).to(agent.actor.device)
 
         score += reward
+        print("score", score)
 
         agent.learn(state, reward, next_state, done)
         state = next_state

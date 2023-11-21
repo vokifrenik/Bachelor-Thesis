@@ -52,19 +52,26 @@ class GeneralNetwork(nn.Module):
             m.bias.data.fill_(0.01)
 
     def forward_actor(self, x):
+        if not isinstance(x, T.Tensor):
+            x = T.tensor(x, dtype=T.float32).to(self.device)
+
         x = self.relu1(self.conv1(x))
         x = self.pool1(x)
         x = self.relu2(self.conv2(x))
         x = self.pool2(x)
         x = x.view(x.size(0), -1)
         x_fc = self.relu_fc(self.fc(x))
-        ## maybe add another relu after output
+        ## Maybe add another relu after output
         mu = self.mu_layer(x_fc).squeeze(-1)
         log_sigma = self.log_sigma_layer(x_fc).squeeze(-1)
 
         return mu, log_sigma
 
     def forward_critic(self, x):
+        # If x is not a tensor, convert it to a tensor
+        if not isinstance(x, T.Tensor):
+            x = T.tensor(x, dtype=T.float32).to(self.device)
+
         x = self.relu1(self.conv1(x))
         x = self.pool1(x)
         x = self.relu2(self.conv2(x))
@@ -76,14 +83,16 @@ class GeneralNetwork(nn.Module):
         return value
     
 class Agent(object):
-    def __init__(self, alpha, beta, input_dims, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64):
+    def __init__(self, alpha, beta, input_dims, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64, batch_size=64):
         self.input_dims = input_dims
         self.log_probs = None
         self.gamma = gamma
         self.epsilon = epsilon
         self.n_actions = n_actions
-        self.actor = GeneralNetwork(alpha, input_dims, layer1_size, layer2_size, output_dims=2)
-        self.critic = GeneralNetwork(beta, input_dims, layer1_size, layer2_size, output_dims=1)
+        self.batch_size = batch_size
+        self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
+        self.critic = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
+        self.replay_buffer = ReplayBuffer(100, input_dims, n_actions)
 
 
     def choose_action(self, state):
@@ -99,8 +108,8 @@ class Agent(object):
         action_probs = T.distributions.Normal(mu, sigma)
 
         # Plot the distribution
-        plt.plot(action_probs.sample().numpy())
-        plt.show()
+        #plt.plot(action_probs.sample().numpy())
+        #plt.show()
 
         # Sample only once and let the distribution broadcast across the batch dimension
         sampled_actions = action_probs.sample()
@@ -135,8 +144,20 @@ class Agent(object):
         
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
-        print("actor_loss", actor_loss)
-        print("critic_loss", critic_loss)
+        
+
+        # Check if there are any nan values in the loss tensors and replace them with small epsilon values
+        for i in range(len(actor_loss)):
+            if T.isnan(actor_loss[i]):
+                actor_loss[i] = T.tensor(1e-6)
+
+        for i in range(len(critic_loss)):
+            if T.isnan(critic_loss[i]):
+                critic_loss[i] = T.tensor(1e-6)
+
+        #print("actor_loss", actor_loss)
+        #print("critic_loss", critic_loss)
+
 
         total_loss = actor_loss.mean() + critic_loss.mean()  ## check this implementation
         print("total_loss", total_loss)
@@ -150,3 +171,61 @@ class Agent(object):
 
         self.actor.optimizer.step()
         self.critic.optimizer.step()
+
+
+
+# The replay buffer
+class ReplayBuffer(object):
+    def __init__(self, max_size, input_shape, n_actions):
+        self.mem_size = max_size
+        self.mem_cntr = 0
+
+        # Initialize memory arrays to zeros
+        self.state_memory = T.zeros((self.mem_size, *input_shape), dtype=T.float32)
+        print("state_memory", self.state_memory.shape)
+        self.new_state_memory = T.zeros((self.mem_size, *input_shape), dtype=T.float32)
+
+        # Store actions as integers
+        self.action_memory = T.zeros(self.mem_size, dtype=T.int64)
+
+        # Store rewards as floats
+        self.reward_memory = T.zeros(self.mem_size, dtype=T.float32)
+
+        # Store done values as booleans
+        self.terminal_memory = T.zeros(self.mem_size, dtype=bool)
+
+    def store_transition(self, state, action, reward, n_state, done):
+        # Calculate the index to insert the experience
+        index = self.mem_cntr % self.mem_size
+
+        print("state in store_transition", state.shape)
+
+        # Store the experience at the index
+        self.state_memory[index] = state
+        self.new_state_memory[index] = n_state
+        self.action_memory[index] = action
+        self.reward_memory[index] = reward
+        self.terminal_memory[index] = done
+
+        # Increment the counter each time we store an experience
+        self.mem_cntr += 1
+
+    def sample_buffer(self, batch_size):
+        # Calculate the maximum memory to sample from
+        max_mem = min(self.mem_cntr, self.mem_size)
+
+        # Generate a random batch of indices
+        batch = np.random.choice(max_mem, batch_size, replace=False)
+
+        # Use the random indices to sample from memory
+        states = self.state_memory[batch].squeeze(0)
+        n_states = self.new_state_memory[batch].squeeze(0)  
+        actions = self.action_memory[batch]
+        rewards = self.reward_memory[batch]
+        dones = self.terminal_memory[batch]
+
+        print("state in sample_buffer", states.shape)
+
+        # Return the batched experiences
+        return states, actions, rewards, n_states, dones
+    

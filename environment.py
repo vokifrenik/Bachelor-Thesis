@@ -17,8 +17,10 @@ env = JoypadSpace(env, SIMPLE_MOVEMENT)
 env = GrayScaleObservation(env, keep_dim=False)
 env = FrameStack(env, 4)
 
+input_size = env.observation_space.shape
+
 # Create the Agent with the correct input_dims
-agent = Agent(0.000005, 0.000001, input_dims=4, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64)
+agent = Agent(0.000005, 0.000001, input_dims = input_size, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64, batch_size=64)
 
 score_history = []
 num_episodes = 100
@@ -38,6 +40,9 @@ for i in range(num_episodes):
         env.render()
 
         action = agent.choose_action(state)
+        # Print the type of state and its dimensions
+        #print(type(state))
+        #print(state.shape)
         next_state, reward, done, info = env.step(action)
 
         # Convert next_state to a single NumPy array
@@ -46,10 +51,28 @@ for i in range(num_episodes):
         # Convert the NumPy array to a PyTorch tensor
         next_state = T.tensor(next_state, dtype=T.float32).to(agent.actor.device)
 
+        agent.replay_buffer.store_transition(state, action, reward, next_state, done)
+
+
         score += reward
         print("score", score)
 
-        agent.learn(state, reward, next_state, done)
+        if agent.replay_buffer.mem_cntr >= agent.replay_buffer.mem_size:
+            state, action, reward, next_state, done = agent.replay_buffer.sample_buffer(agent.batch_size)
+            print("state", state.shape)
+            # Remove first dimension of state and next_state
+            #state = state.squeeze(0)
+            #next_state = next_state.squeeze(0)
+            #print("state", state.shape)
+            
+            # Convert to PyTorch tensors
+            #state = T.tensor(state, dtype=T.float32).to(agent.actor.device)
+            #next_state = T.tensor(next_state, dtype=T.float32).to(agent.actor.device)
+            #print("state", state.shape)
+            #print("state type", type(state))
+            agent.learn(state, reward, next_state, done)
+
+
         state = next_state
 
     env.close()

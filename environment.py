@@ -9,6 +9,9 @@ from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from actor_critic import Agent
 
+# Detect anomaly
+T.autograd.set_detect_anomaly(True)
+
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
 env = JoypadSpace(env, SIMPLE_MOVEMENT)
@@ -77,5 +80,9 @@ for i in range(num_episodes):
 
     env.close()
 
+    T.autograd.set_detect_anomaly(False)
+
     score_history.append(score)
     print('episode ', i, 'score %.2f' % score, '100 game average %.2f' % np.mean(score_history[-100:]))
+
+

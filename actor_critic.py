@@ -104,8 +104,8 @@ class Agent(object):
         #sigma = T.abs(sigma)
         sigma = T.clamp(sigma, min=1e-6)  # Add a small epsilon to avoid zero
         
-        #print("mu", mu)
-        #print("sigma", sigma)
+        print("mu", mu)
+        print("sigma", sigma)
 
         # Sample from the normal distribution
         action_probs = T.distributions.Normal(mu, sigma)
@@ -144,6 +144,9 @@ class Agent(object):
         print("reward", reward)
 
         delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
+
+        self.log_probs = self.log_probs.masked_fill(T.isnan(self.log_probs), 1e-6)
+
 
         # Use clone to avoid in-place modifications
         actor_loss = -self.log_probs * delta

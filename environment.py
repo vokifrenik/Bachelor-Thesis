@@ -9,12 +9,10 @@ from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from actor_critic import Agent
 
-# Detect anomaly
-T.autograd.set_detect_anomaly(True)
-
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
 env = JoypadSpace(env, SIMPLE_MOVEMENT)
+print(SIMPLE_MOVEMENT)
 
 # Preprocess the environment
 env = GrayScaleObservation(env, keep_dim=False)

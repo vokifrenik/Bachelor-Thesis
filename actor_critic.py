@@ -82,7 +82,7 @@ class GeneralNetwork(nn.Module):
         value = self.value_layer(x_fc).squeeze(-1)
 
         # Make sure the value is a scalar
-        value = value.mean(axis=0).item()
+        #value = value.mean(axis=0).item()
         #print("value", value)
 
         return value
@@ -152,21 +152,33 @@ class Agent(object):
         print("actor_loss", actor_loss)
         print("critic_loss", critic_loss)
 
+        # Calculate uncertainties
+        actor_uncertainty = self.log_probs.var()  
+        critic_uncertainty = state_value.var()  
+
+        # Define weights for the uncertainty terms
+        actor_uncertainty_weight = 0.01
+        critic_uncertainty_weight = 0.01
+
+        # Add uncertainty terms to the losses
+        actor_loss += actor_uncertainty_weight * actor_uncertainty
+        critic_loss += critic_uncertainty_weight * critic_uncertainty
+
         # Handle NaN values
         actor_loss = actor_loss.masked_fill(T.isnan(actor_loss), 1e-6)
-        print("actor_loss after", actor_loss)
-        #critic_loss = critic_loss.masked_fill(T.isnan(critic_loss), 1e-6)
+        #print("actor_loss after", actor_loss)
+        critic_loss = critic_loss.masked_fill(T.isnan(critic_loss), 1e-6)
 
         # Clip gradients to prevent exploding gradients
         T.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         T.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
 
         # Calculate total loss
-        total_loss = actor_loss.mean() + critic_loss
+        total_loss = actor_loss + critic_loss
 
         # Handle NaN values in the total loss
-        if T.isnan(total_loss):
-            total_loss = T.tensor(1e-6)
+        total_loss = total_loss.masked_fill(T.isnan(total_loss), 1e-6)
+        total_loss = total_loss.mean()
 
         print("total_loss", total_loss)
 

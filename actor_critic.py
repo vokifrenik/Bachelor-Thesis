@@ -52,17 +52,25 @@ class GeneralNetwork(nn.Module):
             m.bias.data.fill_(0.01)
 
     def forward_actor(self, x):
-        if not isinstance(x, T.Tensor):
-            x = T.tensor(x, dtype=T.float32).to(self.device)
-
+        #if not isinstance(x, T.Tensor):
+        #    x = T.tensor(x, dtype=T.float32).to(self.device)
+        print("x before", x)
         x = F.relu(self.conv1(x))
+        print("x con1", x)
         x = self.pool1(x)
+        print("x pool1", x)
         x = F.relu(self.conv2(x))
+        print("x con2", x)
         x = self.pool2(x)
+        print("x pool2", x)
         x = x.view(x.size(0), -1)
+        print("x flatten", x)
         x_fc = F.relu(self.fc(x))
+        print("x_fc", x_fc)
         mu = self.mu_layer(x_fc).squeeze(-1)
+        print("mu", mu)
         log_sigma = self.log_sigma_layer(x_fc).squeeze(-1)
+        print("log_sigma", log_sigma)
 
         return mu, log_sigma
 
@@ -104,8 +112,8 @@ class Agent(object):
         #sigma = T.abs(sigma)
         sigma = T.clamp(sigma, min=1e-6)  # Add a small epsilon to avoid zero
         
-        print("mu", mu)
-        print("sigma", sigma)
+        #print("mu", mu)
+        #print("sigma", sigma)
 
         # Sample from the normal distribution
         action_probs = T.distributions.Normal(mu, sigma)
@@ -139,9 +147,9 @@ class Agent(object):
         n_state_value = self.critic.forward_critic(n_state)
         state_value = self.critic.forward_critic(state)
 
-        print("state_value", state_value)
-        print("n_state_value", n_state_value)
-        print("reward", reward)
+        #print("state_value", state_value)
+        #print("n_state_value", n_state_value)
+        #print("reward", reward)
 
         delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
 
@@ -152,13 +160,13 @@ class Agent(object):
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
-        print("actor_loss", actor_loss)
-        print("critic_loss", critic_loss)
+        #print("actor_loss", actor_loss)
+        #print("critic_loss", critic_loss)
 
         # Calculate uncertainties
-        actor_uncertainty = self.log_probs.var()  
-        critic_uncertainty = state_value.var()  
-
+        actor_uncertainty = self.log_probs.var()
+        actor_uncertainty = T.clamp(actor_uncertainty, max=1e6)  # Add a maximum value to prevent instability
+        critic_uncertainty = state_value.var()
         # Define weights for the uncertainty terms
         actor_uncertainty_weight = 0.01
         critic_uncertainty_weight = 0.01

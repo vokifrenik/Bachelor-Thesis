@@ -1,8 +1,8 @@
 # environment.py
 
 import numpy as np
-import torch as T
-import gym_super_mario_bros
+import torch as T ## add reference
+import gym_super_mario_bros  ## add reference
 from nes_py.wrappers import JoypadSpace
 from gym.wrappers import GrayScaleObservation
 from gym.wrappers import FrameStack

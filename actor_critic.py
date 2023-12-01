@@ -200,7 +200,7 @@ class Agent(object):
         self.critic.optimizer.step()
 
 
-        # calucate uncertainty for critic and actor and add it to the loss
-        # safe RL with UQ
-        # start with classifier
+        # calucate uncertainty for critic and actor and add it to the loss - DONE
+        # safe RL with UQ - IN PROGRESS
+       ## BUILD CLASSIFIER
 

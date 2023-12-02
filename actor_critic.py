@@ -9,6 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.nn import init
 
+import pyautogui 
+import cv2
+
+
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
         super(GeneralNetwork, self).__init__()
@@ -203,4 +207,50 @@ class Agent(object):
         # calucate uncertainty for critic and actor and add it to the loss - DONE
         # safe RL with UQ - IN PROGRESS
        ## BUILD CLASSIFIER
+
+class RiskClassifier:
+    def __init__(self, reference_images=None, screenshot_dimensions=(1920, 1080)):
+        self.screenshot_dimensions = screenshot_dimensions
+        self.reference_images = {name: cv2.imread(path) for name, path in reference_images.items()} if reference_images else None
+
+    def get_game_screenshot(self):
+        # Use pyautogui to capture a screenshot
+        screenshot = pyautogui.screenshot()
+
+        # Convert the PIL Image to a NumPy array
+        screenshot_np = np.array(screenshot)
+
+        # Resize the screenshot to the desired dimensions
+        screenshot_np = self._resize_screenshot(screenshot_np)
+
+        return screenshot_np
+
+    def _resize_screenshot(self, screenshot_np):
+        # Resize the screenshot to the desired dimensions
+        screenshot_np = cv2.resize(screenshot_np, self.screenshot_dimensions)
+
+        return screenshot_np
+
+    def compare_with_references(self, current_state):
+        if self.reference_images is None:
+            print("Error: Reference images not provided.")
+            return
+
+        risk_metrics = {}
+        for name, reference_image in self.reference_images.items():
+            # Resize the current state to the same dimensions as the reference image
+            current_state_resized = cv2.resize(current_state, reference_image.shape[:2][::-1])
+
+            # Compute Mean Squared Error (MSE) between the two images
+            mse = np.sum((current_state_resized - reference_image) ** 2) / float(current_state.size)
+
+            # You can define a threshold for MSE to determine if the images are similar
+            threshold = 500
+            if mse < threshold:
+                print(f"Risk detected: {name}. MSE: {mse}")
+                risk_metrics[name] = mse
+            else:
+                print(f"No risk detected: {name}. MSE: {mse}")
+
+        return risk_metrics
 

@@ -2,6 +2,7 @@
 
 import numpy as np
 import torch as T ## add reference
+import gym
 import gym_super_mario_bros  ## add reference
 from nes_py.wrappers import JoypadSpace
 from gym.wrappers import GrayScaleObservation
@@ -9,10 +10,13 @@ from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from actor_critic import Agent
 
+
+
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
 env = JoypadSpace(env, SIMPLE_MOVEMENT)
 print(SIMPLE_MOVEMENT)
+print(gym.__version__)
 
 # Preprocess the environment
 env = GrayScaleObservation(env, keep_dim=False)
@@ -29,10 +33,12 @@ num_episodes = 100
 for i in range(num_episodes):
     done = False
     score = 0
-    state = env.reset()
+    
+    # obtain a state by resetting the environment
+    obs = env.reset()
     
     # Convert state to a single NumPy array
-    state = np.array(state)
+    state = np.array(obs)
     
     # Convert the NumPy array to a PyTorch tensor
     state = T.tensor(state, dtype=T.float32).to(agent.actor.device)

@@ -1,18 +1,14 @@
-# model.py
-
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch as T
 import random as rand
 import numpy as np
-import matplotlib.pyplot as plt
-from icecream import ic
 from torch.nn import init
-
-import pyautogui 
+import pyautogui
 import cv2
-
+from icecream import ic
+import matplotlib.pyplot as plt
 
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
@@ -33,14 +29,14 @@ class GeneralNetwork(nn.Module):
         self.pool2 = nn.MaxPool2d(kernel_size=2)
 
         # Common fully connected layer
-        ## Freeze this layer and then update the heads separaetely and vice versa
+        ## Freeze this layer and then update the heads separately and vice versa
         self.fc = nn.Linear(3477, fc1_dims)
-        #self.fc = nn.Linear(fc2_dims * 1 * 1, fc1_dims)
+        # self.fc = nn.Linear(fc2_dims * 1 * 1, fc1_dims)
         self.relu_fc = nn.ReLU()
 
         # Actor head for mean and variance
         self.mu_layer = nn.Linear(fc1_dims, 1)
-        self.log_sigma_layer = nn.Linear(fc1_dims, 1)  ## update 
+        self.log_sigma_layer = nn.Linear(fc1_dims, 1)  ## update here with softmax?
 
         # Critic head for value function
         self.value_layer = nn.Linear(fc1_dims, 1)
@@ -57,8 +53,6 @@ class GeneralNetwork(nn.Module):
             m.bias.data.fill_(0.01)
 
     def forward_actor(self, x):
-        #if not isinstance(x, T.Tensor):
-        #    x = T.tensor(x, dtype=T.float32).to(self.device)
         ic(x)
         x = F.relu(self.conv1(x))
         ic(x)
@@ -101,12 +95,9 @@ class GeneralNetwork(nn.Module):
         x_fc = self.relu_fc(self.fc(x))
         value = self.value_layer(x_fc).squeeze(-1)
 
-        # Make sure the value is a scalar
-        #value = value.mean(axis=0).item()
-        #print("value", value)
-
         return value
-    
+
+
 class Agent(object):
     def __init__(self, alpha, beta, input_dims, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
@@ -117,16 +108,18 @@ class Agent(object):
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
         self.critic = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
 
+        # Initialize the GameClassifier with paths to the Goomba and cliff pattern images
+        self.classifier = GameClassifier(goomba_image_path='"C:\Bachelor Thesis\Bachelor-Thesis\images\goomba.png"',
+                                         cliff_pattern_image_path='path/to/cliff_pattern.jpg')
 
-    def choose_action(self, state):
-        mu, log_sigma = self.actor.forward_actor(state)
+    def choose_action(self, state, temperature=1):
+        mu, sigma = self.actor.forward_actor(state)
+
+        # Calculate the variance
+        sigma_sq = sigma ** 2
 
         # Sample from the normal distribution
-        action_probs = T.distributions.Normal(mu, log_sigma)
-
-        # Plot the distribution
-        plt.plot(action_probs.sample().numpy())
-        plt.show()
+        action_probs = T.distributions.Normal(mu, sigma_sq)
 
         # Sample only once and let the distribution broadcast across the batch dimension
         sampled_actions = action_probs.sample()
@@ -134,16 +127,34 @@ class Agent(object):
         # Calculate log probabilities for the sampled actions
         self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
 
-        # Epsilon-greedy strategy
-        if rand.random() < self.epsilon:
-            action = rand.randrange(self.n_actions)
-        else:
-            # Squeeze the mu tensor to get dimensions [64, 2] before finding the argmax
-            action = T.argmax(mu.squeeze(-1), dim=-1).item()
+        # Boltzmann exploration
+        action_probs_softmax = F.softmax(mu / temperature, dim=-1)
+        action_distribution = T.distributions.Categorical(action_probs_softmax)
+        action = action_distribution.sample().item()
 
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
-        print("action", action)
+
+        # Get the current state image for risk detection
+        current_state_image = self.classifier.get_game_screenshot()
+
+        # Check if a Goomba is present in the current state
+        is_goomba_present = self.classifier.is_goomba_present(current_state_image)
+
+        # Check if a cliff is ahead in the current state
+        is_cliff_ahead = self.classifier.is_cliff_ahead(current_state_image)
+
+        # Print the results
+        if is_goomba_present:
+            print("Goomba is present!")
+        else:
+            print("No Goomba detected.")
+
+        if is_cliff_ahead:
+            print("Cliff is ahead!")
+        else:
+            print("No cliff detected.")
+
         return action
 
     def learn(self, state, reward, n_state, done):
@@ -153,25 +164,19 @@ class Agent(object):
         n_state_value = self.critic.forward_critic(n_state)
         state_value = self.critic.forward_critic(state)
 
-        #print("state_value", state_value)
-        #print("n_state_value", n_state_value)
-        #print("reward", reward)
-
         delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
 
         self.log_probs = self.log_probs.masked_fill(T.isnan(self.log_probs), 1e-6)
-
 
         # Use clone to avoid in-place modifications
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
-        ic(actor_loss)
-        ic(critic_loss)
         # Calculate uncertainties
         actor_uncertainty = self.log_probs.var()
         actor_uncertainty = T.clamp(actor_uncertainty, max=1e6)  # Add a maximum value to prevent instability
         critic_uncertainty = state_value.var()
+
         # Define weights for the uncertainty terms
         actor_uncertainty_weight = 0.01
         critic_uncertainty_weight = 0.01
@@ -182,7 +187,6 @@ class Agent(object):
 
         # Handle NaN values
         actor_loss = actor_loss.masked_fill(T.isnan(actor_loss), 1e-6)
-        #print("actor_loss after", actor_loss)
         critic_loss = critic_loss.masked_fill(T.isnan(critic_loss), 1e-6)
 
         # Clip gradients to prevent exploding gradients
@@ -196,8 +200,6 @@ class Agent(object):
         total_loss = total_loss.masked_fill(T.isnan(total_loss), 1e-6)
         total_loss = total_loss.mean()
 
-        ic(total_loss)
-
         # Perform the backward pass on the scalar total_loss
         total_loss.backward()
 
@@ -205,14 +207,11 @@ class Agent(object):
         self.critic.optimizer.step()
 
 
-        # calucate uncertainty for critic and actor and add it to the loss - DONE
-        # safe RL with UQ - IN PROGRESS
-       ## BUILD CLASSIFIER
-
-class RiskClassifier:
-    def __init__(self, reference_images=None, screenshot_dimensions=(1920, 1080)):
+class GameClassifier:
+    def __init__(self, goomba_image_path, cliff_pattern_image_path, screenshot_dimensions=(1920, 1080)):
         self.screenshot_dimensions = screenshot_dimensions
-        self.reference_images = {name: cv2.imread(path) for name, path in reference_images.items()} if reference_images else None
+        self.goomba_image = cv2.imread(goomba_image_path)
+        self.cliff_pattern_image = cv2.imread(cliff_pattern_image_path)
 
     def get_game_screenshot(self):
         # Use pyautogui to capture a screenshot
@@ -232,26 +231,32 @@ class RiskClassifier:
 
         return screenshot_np
 
-    def compare_with_references(self, current_state):
-        if self.reference_images is None:
-            print("Error: Reference images not provided.")
-            return
+    def is_goomba_present(self, current_state):
+        if self.goomba_image is None:
+            print("Error: Goomba image not provided.")
+            return False
 
-        risk_metrics = {}
-        for name, reference_image in self.reference_images.items():
-            # Resize the current state to the same dimensions as the reference image
-            current_state_resized = cv2.resize(current_state, reference_image.shape[:2][::-1])
+        # Resize the current state to the same dimensions as the goomba image
+        current_state_resized = cv2.resize(current_state, self.goomba_image.shape[:2][::-1])
 
-            # Compute Mean Squared Error (MSE) between the two images
-            mse = np.sum((current_state_resized - reference_image) ** 2) / float(current_state.size)
+        # Compute Mean Squared Error (MSE) between the two images
+        mse = np.sum((current_state_resized - self.goomba_image) ** 2) / float(current_state.size)
 
-            # You can define a threshold for MSE to determine if the images are similar
-            threshold = 500
-            if mse < threshold:
-                print(f"Risk detected: {name}. MSE: {mse}")
-                risk_metrics[name] = mse
-            else:
-                print(f"No risk detected: {name}. MSE: {mse}")
+        # You can define a threshold for MSE to determine if the images are similar
+        threshold = 500
+        return mse < threshold
 
-        return risk_metrics
+    def is_cliff_ahead(self, current_state):
+        if self.cliff_pattern_image is None:
+            print("Error: Cliff pattern image not provided.")
+            return False
 
+        # Resize the current state to the same dimensions as the cliff pattern image
+        current_state_resized = cv2.resize(current_state, self.cliff_pattern_image.shape[:2][::-1])
+
+        # Compute Mean Squared Error (MSE) between the two images
+        mse = np.sum((current_state_resized - self.cliff_pattern_image) ** 2) / float(current_state.size)
+
+        # You can define a threshold for MSE to determine if the images are similar
+        threshold = 500
+        return mse < threshold

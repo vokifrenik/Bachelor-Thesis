@@ -15,8 +15,6 @@ from actor_critic import Agent
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
 env = JoypadSpace(env, SIMPLE_MOVEMENT)
-print(SIMPLE_MOVEMENT)
-print(gym.__version__)
 
 # Preprocess the environment
 env = GrayScaleObservation(env, keep_dim=False)

@@ -7,6 +7,7 @@ import torch as T
 import random as rand
 import numpy as np
 import matplotlib.pyplot as plt
+from icecream import ic
 from torch.nn import init
 
 import pyautogui 
@@ -58,25 +59,32 @@ class GeneralNetwork(nn.Module):
     def forward_actor(self, x):
         #if not isinstance(x, T.Tensor):
         #    x = T.tensor(x, dtype=T.float32).to(self.device)
-        print("x before", x)
+        ic(x)
         x = F.relu(self.conv1(x))
-        print("x con1", x)
+        ic(x)
         x = self.pool1(x)
-        print("x pool1", x)
+        ic(x)
         x = F.relu(self.conv2(x))
-        print("x con2", x)
+        ic(x)
         x = self.pool2(x)
-        print("x pool2", x)
+        ic(x)
         x = x.view(x.size(0), -1)
-        print("x flatten", x)
+        ic(x)
         x_fc = F.relu(self.fc(x))
-        print("x_fc", x_fc)
+        ic(x_fc)
         mu = self.mu_layer(x_fc).squeeze(-1)
-        print("mu", mu)
+        ic(mu)
         log_sigma = self.log_sigma_layer(x_fc).squeeze(-1)
-        print("log_sigma", log_sigma)
 
-        return mu, log_sigma
+        # Make sure the log_sigma is not too large or too small
+        log_sigma = T.clamp(log_sigma, min=-20, max=2)
+        # Add a small value to prevent log(0)
+        log_sigma = log_sigma + 1e-6
+
+        sigma = T.exp(log_sigma)
+        ic(sigma)
+
+        return mu, sigma
 
     def forward_critic(self, x):
         # If x is not a tensor, convert it to a tensor
@@ -112,19 +120,13 @@ class Agent(object):
 
     def choose_action(self, state):
         mu, log_sigma = self.actor.forward_actor(state)
-        sigma = T.exp(log_sigma)
-        #sigma = T.abs(sigma)
-        sigma = T.clamp(sigma, min=1e-6)  # Add a small epsilon to avoid zero
-        
-        #print("mu", mu)
-        #print("sigma", sigma)
 
         # Sample from the normal distribution
-        action_probs = T.distributions.Normal(mu, sigma)
+        action_probs = T.distributions.Normal(mu, log_sigma)
 
         # Plot the distribution
-        #plt.plot(action_probs.sample().numpy())
-        #plt.show()
+        plt.plot(action_probs.sample().numpy())
+        plt.show()
 
         # Sample only once and let the distribution broadcast across the batch dimension
         sampled_actions = action_probs.sample()
@@ -164,9 +166,8 @@ class Agent(object):
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
 
-        #print("actor_loss", actor_loss)
-        #print("critic_loss", critic_loss)
-
+        ic(actor_loss)
+        ic(critic_loss)
         # Calculate uncertainties
         actor_uncertainty = self.log_probs.var()
         actor_uncertainty = T.clamp(actor_uncertainty, max=1e6)  # Add a maximum value to prevent instability
@@ -195,7 +196,7 @@ class Agent(object):
         total_loss = total_loss.masked_fill(T.isnan(total_loss), 1e-6)
         total_loss = total_loss.mean()
 
-        print("total_loss", total_loss)
+        ic(total_loss)
 
         # Perform the backward pass on the scalar total_loss
         total_loss.backward()

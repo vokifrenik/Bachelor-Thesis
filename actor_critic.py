@@ -107,10 +107,10 @@ class Agent(object):
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
         self.critic = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
-
+    
         # Initialize the GameClassifier with paths to the Goomba and cliff pattern images
-        self.classifier = GameClassifier(goomba_image_path='"C:\Bachelor Thesis\Bachelor-Thesis\images\goomba.png"',
-                                         cliff_pattern_image_path='path/to/cliff_pattern.jpg')
+        self.classifier = GameClassifier(goomba_image_path='C:\Bachelor Thesis\Bachelor-Thesis\images\goomba.png',
+                                         cliff_pattern_image_path='C:\Bachelor Thesis\Bachelor-Thesis\images\cliff.png')
 
     def choose_action(self, state, temperature=1):
         mu, sigma = self.actor.forward_actor(state)
@@ -135,8 +135,8 @@ class Agent(object):
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
-        # Get the current state image for risk detection
-        current_state_image = self.classifier.get_game_screenshot()
+        # Make an image of the current state's first frame
+        current_state_image = state[0].cpu().detach().numpy()
 
         # Check if a Goomba is present in the current state
         is_goomba_present = self.classifier.is_goomba_present(current_state_image)
@@ -214,7 +214,7 @@ class GameClassifier:
         self.cliff_pattern_image = cv2.imread(cliff_pattern_image_path)
 
     def get_game_screenshot(self):
-        # Use pyautogui to capture a screenshot
+        # Take screenshot of state
         screenshot = pyautogui.screenshot()
 
         # Convert the PIL Image to a NumPy array
@@ -235,12 +235,20 @@ class GameClassifier:
         if self.goomba_image is None:
             print("Error: Goomba image not provided.")
             return False
+        
+        # Turn the goomba image into grayscale
+        self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_BGR2GRAY)
+        
+       
 
         # Resize the current state to the same dimensions as the goomba image
         current_state_resized = cv2.resize(current_state, self.goomba_image.shape[:2][::-1])
 
         # Compute Mean Squared Error (MSE) between the two images
         mse = np.sum((current_state_resized - self.goomba_image) ** 2) / float(current_state.size)
+
+        # Revert the goomba image to BGR    
+        self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_GRAY2BGR)
 
         # You can define a threshold for MSE to determine if the images are similar
         threshold = 500
@@ -250,12 +258,18 @@ class GameClassifier:
         if self.cliff_pattern_image is None:
             print("Error: Cliff pattern image not provided.")
             return False
+        
+        # Turn the cliff pattern image into grayscale
+        self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_BGR2GRAY)
 
         # Resize the current state to the same dimensions as the cliff pattern image
         current_state_resized = cv2.resize(current_state, self.cliff_pattern_image.shape[:2][::-1])
 
         # Compute Mean Squared Error (MSE) between the two images
         mse = np.sum((current_state_resized - self.cliff_pattern_image) ** 2) / float(current_state.size)
+
+        # Revert the cliff pattern image to BGR
+        self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_GRAY2BGR)
 
         # You can define a threshold for MSE to determine if the images are similar
         threshold = 500

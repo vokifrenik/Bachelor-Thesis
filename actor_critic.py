@@ -211,11 +211,13 @@ class Agent(object):
         self.critic.optimizer.step()
 
 
+
 class GameClassifier:
-    def __init__(self, goomba_image_path, cliff_pattern_image_path, screenshot_dimensions=(1920, 1080)):
+    def __init__(self, goomba_image_path, cliff_pattern_image_path, screenshot_dimensions=(1920, 1080), height_percent=0.5):
         self.screenshot_dimensions = screenshot_dimensions
         self.goomba_image = cv2.imread(goomba_image_path)
         self.cliff_pattern_image = cv2.imread(cliff_pattern_image_path)
+        self.height_percent = height_percent
 
     def get_game_screenshot(self):
         # Take screenshot of state
@@ -235,6 +237,18 @@ class GameClassifier:
 
         return screenshot_np
 
+    def _focus_on_bottom(self, image):
+        # Get the height of the image
+        height, width = image.shape
+
+        # Calculate the vertical position of the desired bottom height
+        target_bottom_height = int((1 - self.height_percent) * height)
+
+        # Crop the image from the bottom
+        bottom_cropped_image = image[target_bottom_height:height, 0:width]
+
+        return bottom_cropped_image
+
     def is_goomba_present(self, current_state):
         if self.goomba_image is None:
             print("Error: Goomba image not provided.")
@@ -242,22 +256,28 @@ class GameClassifier:
         
         # Turn the goomba image into grayscale
         self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_BGR2GRAY)
-        
-        ic(self.goomba_image.shape)
-       
 
-        # Resize the current state to the same dimensions as the goomba image
-        current_state_resized = cv2.resize(current_state, self.goomba_image.shape[:2][::-1])
-        ic(current_state_resized.shape)
+        # Resize the goomba image to the same dimensions as the current state
+        goomba = cv2.resize(self.goomba_image, (current_state.shape[1], current_state.shape[0]))
+
+        # Focus on the bottom part
+        goomba = self._focus_on_bottom(goomba)
+        ic(goomba.shape)
+
+        # Transform array to image for display
+        plt.imshow(goomba)
+
+        state_bottom = self._focus_on_bottom(current_state)
 
         # Compute Mean Squared Error (MSE) between the two images
-        mse = np.sum((current_state_resized - self.goomba_image) ** 2) / float(current_state.size)
+        mse = np.sum((state_bottom - goomba) ** 2) / float(state_bottom.size)
 
         # Revert the goomba image to BGR    
         self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_GRAY2BGR)
 
         # You can define a threshold for MSE to determine if the images are similar
-        threshold = 500
+        ic(mse)
+        threshold = 2000
         return mse < threshold
 
     def is_cliff_ahead(self, current_state):
@@ -268,15 +288,22 @@ class GameClassifier:
         # Turn the cliff pattern image into grayscale
         self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_BGR2GRAY)
 
-        # Resize the current state to the same dimensions as the cliff pattern image
-        current_state_resized = cv2.resize(current_state, self.cliff_pattern_image.shape[:2][::-1])
+        # Resize the cliff pattern image to the same dimensions as the current state
+        cliff_pattern = cv2.resize(self.cliff_pattern_image, (current_state.shape[1], current_state.shape[0]))
+
+        # Focus on the bottom part
+        cliff_pattern = self._focus_on_bottom(cliff_pattern)
+
+        # Focus on the bottom part
+        current_state_bottom = self._focus_on_bottom(current_state)
 
         # Compute Mean Squared Error (MSE) between the two images
-        mse = np.sum((current_state_resized - self.cliff_pattern_image) ** 2) / float(current_state.size)
+        mse = np.sum((current_state_bottom - cliff_pattern) ** 2) / float(current_state_bottom.size)
 
         # Revert the cliff pattern image to BGR
         self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_GRAY2BGR)
 
         # You can define a threshold for MSE to determine if the images are similar
-        threshold = 500
+        ic(mse)
+        threshold = 2000
         return mse < threshold

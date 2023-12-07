@@ -53,21 +53,21 @@ class GeneralNetwork(nn.Module):
             m.bias.data.fill_(0.01)
 
     def forward_actor(self, x):
-        ic(x)
+        #ic(x)
         x = F.relu(self.conv1(x))
-        ic(x)
+        #ic(x)
         x = self.pool1(x)
-        ic(x)
+        #ic(x)
         x = F.relu(self.conv2(x))
-        ic(x)
+        #ic(x)
         x = self.pool2(x)
-        ic(x)
+        #ic(x)
         x = x.view(x.size(0), -1)
-        ic(x)
+        #ic(x)
         x_fc = F.relu(self.fc(x))
-        ic(x_fc)
+        #ic(x_fc)
         mu = self.mu_layer(x_fc).squeeze(-1)
-        ic(mu)
+        #ic(mu)
         log_sigma = self.log_sigma_layer(x_fc).squeeze(-1)
 
         # Make sure the log_sigma is not too large or too small
@@ -76,7 +76,7 @@ class GeneralNetwork(nn.Module):
         log_sigma = log_sigma + 1e-6
 
         sigma = T.exp(log_sigma)
-        ic(sigma)
+        #ic(sigma)
 
         return mu, sigma
 
@@ -94,7 +94,7 @@ class GeneralNetwork(nn.Module):
 
         x_fc = self.relu_fc(self.fc(x))
         value = self.value_layer(x_fc).squeeze(-1)
-
+        #ic(value)
         return value
 
 
@@ -128,15 +128,19 @@ class Agent(object):
         self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
 
         # Boltzmann exploration
-        action_probs_softmax = F.softmax(mu / temperature, dim=-1)
-        action_distribution = T.distributions.Categorical(action_probs_softmax)
-        action = action_distribution.sample().item()
+        action_probs_softmax = F.softmax(mu / temperature, dim=-1) # Divide by temperature to control exploration
+        action_distribution = T.distributions.Categorical(action_probs_softmax)  # Makes categorical disribution of actions
+        action = action_distribution.sample().item() # Samples an action from the distribution
 
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
         # Make an image of the current state's first frame
         current_state_image = state[0].cpu().detach().numpy()
+
+        # display the image
+        ic(current_state_image.shape)
+
 
         # Check if a Goomba is present in the current state
         is_goomba_present = self.classifier.is_goomba_present(current_state_image)
@@ -239,10 +243,12 @@ class GameClassifier:
         # Turn the goomba image into grayscale
         self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_BGR2GRAY)
         
+        ic(self.goomba_image.shape)
        
 
         # Resize the current state to the same dimensions as the goomba image
         current_state_resized = cv2.resize(current_state, self.goomba_image.shape[:2][::-1])
+        ic(current_state_resized.shape)
 
         # Compute Mean Squared Error (MSE) between the two images
         mse = np.sum((current_state_resized - self.goomba_image) ** 2) / float(current_state.size)

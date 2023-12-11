@@ -23,7 +23,7 @@ env = FrameStack(env, 4)
 input_size = env.observation_space.shape
 
 # Create the Agent with the correct input_dims
-agent = Agent(0.0000005, 0.0000001, input_dims = input_size, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64)
+agent = Agent(0.0000005, 0.0000001, input_dims = input_size, gamma=0.99, n_actions=7, layer1_size=64, layer2_size=64)
 
 score_history = []
 num_episodes = 100

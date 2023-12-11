@@ -10,6 +10,51 @@ import cv2
 from icecream import ic
 import matplotlib.pyplot as plt
 
+def find_object(state):
+    # Opening image
+    # Transform state into jpg
+    state = state.astype(np.uint8)
+    #state = cv2.cvtColor(state, cv2.COLOR_RGB2BGR)
+
+    img = state
+    
+    # OpenCV opens images as BRG 
+    # but we want it as RGB We'll 
+    # also need a grayscale version
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    
+    # Use minSize because for not 
+    # bothering with extra-small 
+    # dots that would look like STOP signs
+    stop_data = cv2.CascadeClassifier('C:\Bachelor Thesis\Bachelor-Thesis\images\gumba.xml')
+    
+    found = stop_data.detectMultiScale(img_gray, 
+                                    minSize =(20, 20))
+    
+    # Don't do anything if there's 
+    # no sign
+    amount_found = len(found)
+    
+    if amount_found != 0:
+        
+        # There may be more than one
+        # sign in the image
+        for (x, y, width, height) in found:
+            
+            # We draw a green rectangle around
+            # every recognized sign
+            cv2.rectangle(img_rgb, (x, y), 
+                        (x + height, y + width), 
+                        (0, 255, 0), 5)
+            
+    # Creates the environment of 
+    # the picture and shows it
+    plt.subplot(1, 1, 1)
+    plt.imshow(img_rgb)
+    plt.show()
+
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
         super(GeneralNetwork, self).__init__()
@@ -99,18 +144,17 @@ class GeneralNetwork(nn.Module):
 
 
 class Agent(object):
-    def __init__(self, alpha, beta, input_dims, gamma=0.99, epsilon=0.2, n_actions=7, layer1_size=64, layer2_size=64):
+    def __init__(self, alpha, beta, input_dims, gamma=0.90, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
         self.log_probs = None
         self.gamma = gamma
-        self.epsilon = epsilon
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
         self.critic = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
     
         # Initialize the GameClassifier with paths to the Goomba and cliff pattern images
-        self.classifier = GameClassifier(goomba_image_path='C:\Bachelor Thesis\Bachelor-Thesis\images\goomba.png',
-                                         cliff_pattern_image_path='C:\Bachelor Thesis\Bachelor-Thesis\images\cliff.png')
+        #self.classifier = GameClassifier(goomba_image_path='path/to/goomba/template.png',
+        #                                 cliff_pattern_image_path='path/to/cliff/template.png')
 
     def choose_action(self, state, temperature=1):
         mu, sigma = self.actor.forward_actor(state)
@@ -135,29 +179,11 @@ class Agent(object):
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
-        # Make an image of the current state's first frame
-        current_state_image = state[0].cpu().detach().numpy()
-
-        # display the image
-        ic(current_state_image.shape)
-
-
-        # Check if a Goomba is present in the current state
-        is_goomba_present = self.classifier.is_goomba_present(current_state_image)
-
-        # Check if a cliff is ahead in the current state
-        is_cliff_ahead = self.classifier.is_cliff_ahead(current_state_image)
-
-        # Print the results
-        if is_goomba_present:
-            print("Goomba is present!")
-        else:
-            print("No Goomba detected.")
-
-        if is_cliff_ahead:
-            print("Cliff is ahead!")
-        else:
-            print("No cliff detected.")
+        # Call the find_object function to detect the Goomba in the current state image
+        template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image
+        # Convert the state to a NumPy array
+        current_state = state.cpu().detach().numpy()
+        find_object(current_state)
 
         return action
 
@@ -197,113 +223,111 @@ class Agent(object):
         T.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         T.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
 
-        # Calculate total loss
-        total_loss = actor_loss + critic_loss
-
-        # Handle NaN values in the total loss
-        total_loss = total_loss.masked_fill(T.isnan(total_loss), 1e-6)
-        total_loss = total_loss.mean()
-
-        # Perform the backward pass on the scalar total_loss
-        total_loss.backward()
-
+        # Perform the backward pass on the scalar actor_loss
+        actor_loss.backward()
         self.actor.optimizer.step()
+
+        # Zero out the gradients to avoid accumulation
+        self.actor.optimizer.zero_grad()
+
+        # Perform the backward pass on the scalar critic_loss
+        critic_loss.backward()
         self.critic.optimizer.step()
 
+'''
+    class GameClassifier:
+        def __init__(self, goomba_image_path, cliff_pattern_image_path, screenshot_dimensions=(1920, 1080), height_percent=0.5):
+            self.screenshot_dimensions = screenshot_dimensions
+            self.goomba_image = cv2.imread(goomba_image_path)
+            self.cliff_pattern_image = cv2.imread(cliff_pattern_image_path)
+            self.height_percent = height_percent
 
+        def get_game_screenshot(self):
+            # Take screenshot of state
+            screenshot = pyautogui.screenshot()
 
-class GameClassifier:
-    def __init__(self, goomba_image_path, cliff_pattern_image_path, screenshot_dimensions=(1920, 1080), height_percent=0.5):
-        self.screenshot_dimensions = screenshot_dimensions
-        self.goomba_image = cv2.imread(goomba_image_path)
-        self.cliff_pattern_image = cv2.imread(cliff_pattern_image_path)
-        self.height_percent = height_percent
+            # Convert the PIL Image to a NumPy array
+            screenshot_np = np.array(screenshot)
 
-    def get_game_screenshot(self):
-        # Take screenshot of state
-        screenshot = pyautogui.screenshot()
+            # Resize the screenshot to the desired dimensions
+            screenshot_np = self._resize_screenshot(screenshot_np)
 
-        # Convert the PIL Image to a NumPy array
-        screenshot_np = np.array(screenshot)
+            return screenshot_np
 
-        # Resize the screenshot to the desired dimensions
-        screenshot_np = self._resize_screenshot(screenshot_np)
+        def _resize_screenshot(self, screenshot_np):
+            # Resize the screenshot to the desired dimensions
+            screenshot_np = cv2.resize(screenshot_np, self.screenshot_dimensions)
 
-        return screenshot_np
+            return screenshot_np
 
-    def _resize_screenshot(self, screenshot_np):
-        # Resize the screenshot to the desired dimensions
-        screenshot_np = cv2.resize(screenshot_np, self.screenshot_dimensions)
+        def _focus_on_bottom(self, image):
+            # Get the height of the image
+            height, width = image.shape
 
-        return screenshot_np
+            # Calculate the vertical position of the desired bottom height
+            target_bottom_height = int((1 - self.height_percent) * height)
 
-    def _focus_on_bottom(self, image):
-        # Get the height of the image
-        height, width = image.shape
+            # Crop the image from the bottom
+            bottom_cropped_image = image[target_bottom_height:height, 0:width]
 
-        # Calculate the vertical position of the desired bottom height
-        target_bottom_height = int((1 - self.height_percent) * height)
+            return bottom_cropped_image
 
-        # Crop the image from the bottom
-        bottom_cropped_image = image[target_bottom_height:height, 0:width]
+        def is_goomba_present(self, current_state):
+            if self.goomba_image is None:
+                print("Error: Goomba image not provided.")
+                return False
+            
+            # Turn the goomba image into grayscale
+            self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_BGR2GRAY)
 
-        return bottom_cropped_image
+            # Resize the goomba image to the same dimensions as the current state
+            goomba = cv2.resize(self.goomba_image, (current_state.shape[1], current_state.shape[0]))
 
-    def is_goomba_present(self, current_state):
-        if self.goomba_image is None:
-            print("Error: Goomba image not provided.")
-            return False
-        
-        # Turn the goomba image into grayscale
-        self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_BGR2GRAY)
+            # Focus on the bottom part
+            goomba = self._focus_on_bottom(goomba)
+            ic(goomba.shape)
 
-        # Resize the goomba image to the same dimensions as the current state
-        goomba = cv2.resize(self.goomba_image, (current_state.shape[1], current_state.shape[0]))
+            # Transform array to image for display
+            plt.imshow(goomba)
 
-        # Focus on the bottom part
-        goomba = self._focus_on_bottom(goomba)
-        ic(goomba.shape)
+            state_bottom = self._focus_on_bottom(current_state)
 
-        # Transform array to image for display
-        plt.imshow(goomba)
+            # Compute Mean Squared Error (MSE) between the two images
+            mse = np.sum((state_bottom - goomba) ** 2) / float(state_bottom.size)
 
-        state_bottom = self._focus_on_bottom(current_state)
+            # Revert the goomba image to BGR    
+            self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_GRAY2BGR)
 
-        # Compute Mean Squared Error (MSE) between the two images
-        mse = np.sum((state_bottom - goomba) ** 2) / float(state_bottom.size)
+            # You can define a threshold for MSE to determine if the images are similar
+            ic(mse)
+            threshold = 2000
+            return mse < threshold
 
-        # Revert the goomba image to BGR    
-        self.goomba_image = cv2.cvtColor(self.goomba_image, cv2.COLOR_GRAY2BGR)
+        def is_cliff_ahead(self, current_state):
+            if self.cliff_pattern_image is None:
+                print("Error: Cliff pattern image not provided.")
+                return False
+            
+            # Turn the cliff pattern image into grayscale
+            self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_BGR2GRAY)
 
-        # You can define a threshold for MSE to determine if the images are similar
-        ic(mse)
-        threshold = 2000
-        return mse < threshold
+            # Resize the cliff pattern image to the same dimensions as the current state
+            cliff_pattern = cv2.resize(self.cliff_pattern_image, (current_state.shape[1], current_state.shape[0]))
 
-    def is_cliff_ahead(self, current_state):
-        if self.cliff_pattern_image is None:
-            print("Error: Cliff pattern image not provided.")
-            return False
-        
-        # Turn the cliff pattern image into grayscale
-        self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_BGR2GRAY)
+            # Focus on the bottom part
+            cliff_pattern = self._focus_on_bottom(cliff_pattern)
 
-        # Resize the cliff pattern image to the same dimensions as the current state
-        cliff_pattern = cv2.resize(self.cliff_pattern_image, (current_state.shape[1], current_state.shape[0]))
+            # Focus on the bottom part
+            current_state_bottom = self._focus_on_bottom(current_state)
 
-        # Focus on the bottom part
-        cliff_pattern = self._focus_on_bottom(cliff_pattern)
+            # Compute Mean Squared Error (MSE) between the two images
+            mse = np.sum((current_state_bottom - cliff_pattern) ** 2) / float(current_state_bottom.size)
 
-        # Focus on the bottom part
-        current_state_bottom = self._focus_on_bottom(current_state)
+            # Revert the cliff pattern image to BGR
+            self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_GRAY2BGR)
 
-        # Compute Mean Squared Error (MSE) between the two images
-        mse = np.sum((current_state_bottom - cliff_pattern) ** 2) / float(current_state_bottom.size)
-
-        # Revert the cliff pattern image to BGR
-        self.cliff_pattern_image = cv2.cvtColor(self.cliff_pattern_image, cv2.COLOR_GRAY2BGR)
-
-        # You can define a threshold for MSE to determine if the images are similar
-        ic(mse)
-        threshold = 2000
-        return mse < threshold
+            # You can define a threshold for MSE to determine if the images are similar
+            ic(mse)
+            threshold = 2000
+            return mse < threshold
+'''

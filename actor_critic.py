@@ -182,9 +182,9 @@ class Agent(object):
         action = int(action / 10)
 
         # Call the find_object function to detect the Goomba in the current state image
-        template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image
+        #template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image
         # Convert the state to a NumPy array
-        current_state = state.cpu().detach().numpy()
+        #current_state = state.cpu().detach().numpy()
         #find_object(current_state)
 
         return action
@@ -203,6 +203,9 @@ class Agent(object):
         # Use clone to avoid in-place modifications
         actor_loss = -self.log_probs * delta
         critic_loss = delta ** 2
+
+
+        ## Change UQ to use ensembles of critics
 
         # Calculate uncertainties
         actor_uncertainty = self.log_probs.var()

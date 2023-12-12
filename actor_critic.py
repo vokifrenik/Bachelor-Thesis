@@ -152,7 +152,9 @@ class Agent(object):
         self.gamma = gamma
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
-        self.critic = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
+        self.critic1 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
+        self.critic2 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
+        self.critic3 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
     
         # Initialize the GameClassifier with paths to the Goomba and cliff pattern images
         #self.classifier = GameClassifier(goomba_image_path='path/to/goomba/template.png',
@@ -191,26 +193,38 @@ class Agent(object):
 
     def learn(self, state, reward, n_state, done):
         self.actor.optimizer.zero_grad()
-        self.critic.optimizer.zero_grad()
+        self.critic1.optimizer.zero_grad()
+        self.critic2.optimizer.zero_grad()
+        self.critic3.optimizer.zero_grad()
 
-        n_state_value = self.critic.forward_critic(n_state)
-        state_value = self.critic.forward_critic(state)
+        n_state_value1 = self.critic1.forward_critic(n_state)
+        n_state_value2 = self.critic2.forward_critic(n_state)
+        n_state_value3 = self.critic3.forward_critic(n_state)
 
-        delta = reward + self.gamma * n_state_value * (1 - int(done)) - state_value
+        state_value1 = self.critic1.forward_critic(state)
+        state_value2 = self.critic2.forward_critic(state)
+        state_value3 = self.critic3.forward_critic(state)
+
+        # Calculate separate delta and loss for each critic
+        delta1 = reward + self.gamma * n_state_value1 * (1 - int(done)) - state_value1
+        delta2 = reward + self.gamma * n_state_value2 * (1 - int(done)) - state_value2
+        delta3 = reward + self.gamma * n_state_value3 * (1 - int(done)) - state_value3
 
         self.log_probs = self.log_probs.masked_fill(T.isnan(self.log_probs), 1e-6)
 
         # Use clone to avoid in-place modifications
-        actor_loss = -self.log_probs * delta
-        critic_loss = delta ** 2
+        actor_loss = -self.log_probs * delta1
+        critic_loss1 = delta1 ** 2
 
+        actor_loss += -self.log_probs * delta2
+        critic_loss2 = delta2 ** 2
 
-        ## Change UQ to use ensembles of critics
+        actor_loss += -self.log_probs * delta3
+        critic_loss3 = delta3 ** 2
 
         # Calculate uncertainties
         actor_uncertainty = self.log_probs.var()
         actor_uncertainty = T.clamp(actor_uncertainty, max=1e6)  # Add a maximum value to prevent instability
-        critic_uncertainty = state_value.var()
 
         # Define weights for the uncertainty terms
         actor_uncertainty_weight = 0.01
@@ -218,19 +232,27 @@ class Agent(object):
 
         # Add uncertainty terms to the losses
         actor_loss += actor_uncertainty_weight * actor_uncertainty
-        critic_loss += critic_uncertainty_weight * critic_uncertainty
+        critic_loss1 += critic_uncertainty_weight * state_value1.var()
+        critic_loss2 += critic_uncertainty_weight * state_value2.var()
+        critic_loss3 += critic_uncertainty_weight * state_value3.var()
 
         # Handle NaN values
         actor_loss = actor_loss.masked_fill(T.isnan(actor_loss), 1e-6)
-        critic_loss = critic_loss.masked_fill(T.isnan(critic_loss), 1e-6)
+        critic_loss1 = critic_loss1.masked_fill(T.isnan(critic_loss1), 1e-6)
+        critic_loss2 = critic_loss2.masked_fill(T.isnan(critic_loss2), 1e-6)
+        critic_loss3 = critic_loss3.masked_fill(T.isnan(critic_loss3), 1e-6)
 
         # Clip gradients to prevent exploding gradients
         T.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
-        T.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+        T.nn.utils.clip_grad_norm_(self.critic1.parameters(), max_norm=0.5)
+        T.nn.utils.clip_grad_norm_(self.critic2.parameters(), max_norm=0.5)
+        T.nn.utils.clip_grad_norm_(self.critic3.parameters(), max_norm=0.5)
 
         # Turn to scalar
         actor_loss = actor_loss.mean()
-        critic_loss = critic_loss.mean()
+        critic_loss1 = critic_loss1.mean()
+        critic_loss2 = critic_loss2.mean()
+        critic_loss3 = critic_loss3.mean()
 
         # Perform the backward pass on the scalar actor_loss
         actor_loss.backward(retain_graph=True)
@@ -240,8 +262,15 @@ class Agent(object):
         self.actor.optimizer.zero_grad()
 
         # Perform the backward pass on the scalar critic_loss
-        critic_loss.backward(retain_graph=True)
-        self.critic.optimizer.step()
+        critic_loss1.backward(retain_graph=True)
+        self.critic1.optimizer.step()
+
+        critic_loss2.backward(retain_graph=True)
+        self.critic2.optimizer.step()
+
+        critic_loss3.backward(retain_graph=True)
+        self.critic3.optimizer.step()
+
 
 '''
     class GameClassifier:

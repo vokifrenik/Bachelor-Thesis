@@ -10,6 +10,7 @@ import cv2
 from icecream import ic
 import matplotlib.pyplot as plt
 
+'''
 def find_object(state):
     # Opening image
     # Transform state into jpg
@@ -54,7 +55,8 @@ def find_object(state):
     plt.subplot(1, 1, 1)
     plt.imshow(img_rgb)
     plt.show()
-
+'''
+    
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
         super(GeneralNetwork, self).__init__()
@@ -183,7 +185,7 @@ class Agent(object):
         template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image
         # Convert the state to a NumPy array
         current_state = state.cpu().detach().numpy()
-        find_object(current_state)
+        #find_object(current_state)
 
         return action
 
@@ -223,15 +225,19 @@ class Agent(object):
         T.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         T.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
 
+        # Turn to scalar
+        actor_loss = actor_loss.mean()
+        critic_loss = critic_loss.mean()
+
         # Perform the backward pass on the scalar actor_loss
-        actor_loss.backward()
+        actor_loss.backward(retain_graph=True)
         self.actor.optimizer.step()
 
         # Zero out the gradients to avoid accumulation
         self.actor.optimizer.zero_grad()
 
         # Perform the backward pass on the scalar critic_loss
-        critic_loss.backward()
+        critic_loss.backward(retain_graph=True)
         self.critic.optimizer.step()
 
 '''

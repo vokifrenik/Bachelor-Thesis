@@ -5,57 +5,38 @@ import torch as T
 import random as rand
 import numpy as np
 from torch.nn import init
-import pyautogui
 import cv2
 from icecream import ic
 import matplotlib.pyplot as plt
 
-'''
-def find_object(state):
-    # Opening image
-    # Transform state into jpg
-    state = state.astype(np.uint8)
-    #state = cv2.cvtColor(state, cv2.COLOR_RGB2BGR)
 
-    img = state
-    
-    # OpenCV opens images as BRG 
-    # but we want it as RGB We'll 
-    # also need a grayscale version
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    
-    # Use minSize because for not 
-    # bothering with extra-small 
-    # dots that would look like STOP signs
-    stop_data = cv2.CascadeClassifier('C:\Bachelor Thesis\Bachelor-Thesis\images\gumba.xml')
-    
-    found = stop_data.detectMultiScale(img_gray, 
-                                    minSize =(20, 20))
-    
-    # Don't do anything if there's 
-    # no sign
-    amount_found = len(found)
-    
-    if amount_found != 0:
-        
-        # There may be more than one
-        # sign in the image
-        for (x, y, width, height) in found:
-            
-            # We draw a green rectangle around
-            # every recognized sign
-            cv2.rectangle(img_rgb, (x, y), 
-                        (x + height, y + width), 
-                        (0, 255, 0), 5)
-            
-    # Creates the environment of 
-    # the picture and shows it
-    plt.subplot(1, 1, 1)
-    plt.imshow(img_rgb)
-    plt.show()
-'''
+def find_object(state):
+    # Load the images
+    large_image = cv2.imread('large_image.jpg')
+    small_image = cv2.imread('small_image.jpg')
+
+    # Convert to grayscale
+    large_image_gray = cv2.cvtColor(large_image, cv2.COLOR_BGR2GRAY)
+    small_image_gray = cv2.cvtColor(small_image, cv2.COLOR_BGR2GRAY)
+
+    # Perform template matching
+    result = cv2.matchTemplate(large_image_gray, small_image_gray, cv2.TM_CCOEFF_NORMED)
+
+    # Set a threshold
+    threshold = 0.8
+
+    # Find where the match is
+    locations = np.where(result >= threshold)
+
+    # Extract the coordinates of the match
+    locations = list(zip(*locations[::-1]))
+
+    # If it exists return coordinates otherwise return None
+    if locations:
+        return locations[0]
+    else:
+        return None
+
     
 class GeneralNetwork(nn.Module):
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, output_dims):
@@ -182,6 +163,10 @@ class Agent(object):
 
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
+
+        goomba =find_object(state)
+
+        print(goomba)
 
         # Call the find_object function to detect the Goomba in the current state image
         #template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image

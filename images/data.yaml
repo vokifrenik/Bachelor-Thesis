@@ -1,6 +1,6 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: C:\Bachelor Thesis\Bachelor-Thesis\images\train\images
+val: C:\Bachelor Thesis\Bachelor-Thesis\images\valid\images
+test: C:\Bachelor Thesis\Bachelor-Thesis\images\test\images
 
 nc: 3
 names: ['Goomba', 'Hoyo', 'Tortuga']

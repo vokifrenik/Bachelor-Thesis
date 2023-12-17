@@ -8,22 +8,37 @@ from torch.nn import init
 import cv2
 from icecream import ic
 import matplotlib.pyplot as plt
+from PIL import Image
+from torch.distributions.normal import Normal
+from torch.distributions.categorical import Categorical
+
 
 
 def find_object(state):
     # Load the images
-    large_image = cv2.imread('large_image.jpg')
-    small_image = cv2.imread('small_image.jpg')
+    # Convert the first frame of the tensor to numpy array
+    state = state[0].cpu().detach().numpy()
+
+    # Convert NumPy array to image
+    #large_image_gray = Image.fromarray(state)
+    #ic(large_image_gray)
+    small_image = cv2.imread('C:\Bachelor Thesis\Bachelor-Thesis\images\gumbi.png')
 
     # Convert to grayscale
-    large_image_gray = cv2.cvtColor(large_image, cv2.COLOR_BGR2GRAY)
     small_image_gray = cv2.cvtColor(small_image, cv2.COLOR_BGR2GRAY)
+    
+    # convert small_image_gray to uint8
+    small_image_gray = small_image_gray.astype(np.uint8)
+    state = state.astype(np.uint8)
 
-    # Perform template matching
-    result = cv2.matchTemplate(large_image_gray, small_image_gray, cv2.TM_CCOEFF_NORMED)
+    ic(small_image_gray)
+    ic(state)
+
+    # Template matching
+    result = cv2.matchTemplate(state, small_image_gray, cv2.TM_CCOEFF_NORMED)
 
     # Set a threshold
-    threshold = 0.8
+    threshold = 0.4
 
     # Find where the match is
     locations = np.where(result >= threshold)
@@ -148,23 +163,29 @@ class Agent(object):
         sigma_sq = sigma ** 2
 
         # Sample from the normal distribution
-        action_probs = T.distributions.Normal(mu, sigma_sq)
+        #action_probs = T.distributions.Normal(mu, sigma_sq)
 
-        # Sample only once and let the distribution broadcast across the batch dimension
-        sampled_actions = action_probs.sample()
+        # Remove negative values from the distribution
+        #action_probs = T.clamp(action_probs, min=0)
 
-        # Calculate log probabilities for the sampled actions
-        self.log_probs = action_probs.log_prob(sampled_actions).to(self.actor.device)
+        # Create a normal distribution
+        normal_distribution = Normal(loc=mu, scale=sigma_sq)
+
+        # Sample values from the normal distribution
+        samples = normal_distribution.sample((7,))
+
+        # Calculate the log probabilities of the actions
+        self.log_probs = normal_distribution.log_prob(samples)
 
         # Boltzmann exploration
-        action_probs_softmax = F.softmax(mu / temperature, dim=-1) # Divide by temperature to control exploration
-        action_distribution = T.distributions.Categorical(action_probs_softmax)  # Makes categorical disribution of actions
-        action = action_distribution.sample().item() # Samples an action from the distribution
+        action_probs_softmax = F.softmax(mu / temperature, dim=-1) 
+        action_distribution = T.distributions.Categorical(action_probs_softmax)  
+        action = action_distribution.sample().item() 
 
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
-        goomba =find_object(state)
+        goomba = find_object(state)
 
         print(goomba)
 
@@ -173,6 +194,7 @@ class Agent(object):
         # Convert the state to a NumPy array
         #current_state = state.cpu().detach().numpy()
         #find_object(current_state)
+        ic(action)
 
         return action
 
@@ -191,9 +213,9 @@ class Agent(object):
         state_value3 = self.critic3.forward_critic(state)
 
         # Calculate separate delta and loss for each critic
-        delta1 = reward + self.gamma * n_state_value1 * (1 - int(done)) - state_value1
-        delta2 = reward + self.gamma * n_state_value2 * (1 - int(done)) - state_value2
-        delta3 = reward + self.gamma * n_state_value3 * (1 - int(done)) - state_value3
+        delta1 = (reward + self.gamma * n_state_value1 * (1 - int(done)) - state_value1).mean()
+        delta2 = (reward + self.gamma * n_state_value2 * (1 - int(done)) - state_value2).mean()
+        delta3 = (reward + self.gamma * n_state_value3 * (1 - int(done)) - state_value3).mean()
 
         self.log_probs = self.log_probs.masked_fill(T.isnan(self.log_probs), 1e-6)
 

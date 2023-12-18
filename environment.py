@@ -58,13 +58,17 @@ for i in range(num_episodes):
         next_state = T.tensor(next_state, dtype=T.float32).to(agent.actor.device)
 
         score += reward
-        # print("score", score)
+        print("score", score)
+        print("reward", reward)
+        print("deaths", deaths)
 
         agent.learn(state, reward, next_state, done)
 
         state = next_state
 
     deaths += current_episode_deaths  
+    #why do you not see gumb_____________________________________________________________Miriow
+
 
     env.close()
 
@@ -74,3 +78,4 @@ for i in range(num_episodes):
     score_history.append(score)
     print('episode ', i, 'score %.2f' % score, 'deaths in this episode', current_episode_deaths, 'total deaths', deaths,
           '100 game average %.2f' % np.mean(score_history[-100:]))
+#death to mario

@@ -22,7 +22,7 @@ def find_object(state):
     # Convert NumPy array to image
     #large_image_gray = Image.fromarray(state)
     #ic(large_image_gray)
-    small_image = cv2.imread('C:\Bachelor Thesis\Bachelor-Thesis\images\GuillaumeGoomb.png')
+    small_image = cv2.imread('C:\Bachelor Thesis\Bachelor-Thesis\images\gimbu.png')
 
     # Convert to grayscale
     small_image_gray = cv2.cvtColor(small_image, cv2.COLOR_BGR2GRAY)
@@ -31,10 +31,8 @@ def find_object(state):
     small_image_gray = small_image_gray.astype(np.uint8)
     state = state.astype(np.uint8)
 
-    ic(small_image_gray)
-    ic(small_image_gray.shape)
-    ic(state)
-    ic(state.shape)
+    #ic(small_image_gray)
+    #ic(state)
 
     # Template matching
     result = cv2.matchTemplate(state, small_image_gray, cv2.TM_CCOEFF_NORMED)

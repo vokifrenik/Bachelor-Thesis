@@ -153,7 +153,7 @@ class Agent(object):
         self.critic2 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
         self.critic3 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
 
-    def choose_action(self, state, temperature=1):
+    def choose_action(self, state, temperature):
         mu, sigma = self.actor.forward_actor(state)
 
         # Calculate the variance
@@ -185,13 +185,10 @@ class Agent(object):
         goomba = find_object(state)
 
         ic(goomba)
-
-        # Call the find_object function to detect the Goomba in the current state image
-        #template_path = 'C:\Bachelor Thesis\Bachelor-Thesis\images\goomb.png'  # Replace with the actual path to the Goomba template image
-        # Convert the state to a NumPy array
-        #current_state = state.cpu().detach().numpy()
-        #find_object(current_state)
         ic(action)
+
+        # Reduce temperature to get more greedy 
+        temperature = temperature * 0.9999
 
         return action
 

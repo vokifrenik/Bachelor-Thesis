@@ -153,7 +153,7 @@ class Agent(object):
         self.critic2 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
         self.critic3 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
 
-    def choose_action(self, state, temperature=1):
+    def choose_action(self, state, temperature):
         mu, sigma = self.actor.forward_actor(state)
 
         # Calculate the variance
@@ -192,6 +192,8 @@ class Agent(object):
         #current_state = state.cpu().detach().numpy()
         #find_object(current_state)
         ic(action)
+
+        temperature = temperature * 0.9999
 
         return action
 

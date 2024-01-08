@@ -45,7 +45,7 @@ for i in range(num_episodes):
     while not done:
         env.render()
 
-        action = agent.choose_action(state)
+        action = agent.choose_action(state, 1)
         next_state, reward, done, info = env.step(action)
 
         # get x-pos of mario from info

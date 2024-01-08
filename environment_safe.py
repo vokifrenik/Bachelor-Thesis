@@ -51,6 +51,8 @@ for i in range(num_episodes):
         # get x-pos of mario from info
         x_pos = info['x_pos']
 
+        agent.get_distance(x_pos)
+
         # Check if Mario died
         if done:  
             current_episode_deaths += 1

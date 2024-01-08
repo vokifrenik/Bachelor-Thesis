@@ -12,9 +12,7 @@ from PIL import Image
 from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 
-
-
-def find_object(state):
+def find_object(self, state):
     # Load the images
     # Convert the first frame of the tensor to numpy array
     state = state[0].cpu().detach().numpy()
@@ -45,8 +43,10 @@ def find_object(state):
 
     # If it exists return coordinates otherwise return None
     if locations:
+        self.goomba = locations[0]
         return locations[0]
     else:
+        self.goomba = None
         return None
 
     
@@ -146,6 +146,7 @@ class Agent(object):
         self.critic_loss1 = None
         self.critic_loss2 = None
         self.critic_loss3 = None
+        self.goomba = None
         self.gamma = gamma
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
@@ -182,7 +183,7 @@ class Agent(object):
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
-        goomba = find_object(state)
+        goomba = find_object(self, state)
 
         ic(goomba)
         ic(action)
@@ -277,3 +278,15 @@ class Agent(object):
         critic_loss3.backward(retain_graph=True)
         self.critic3.optimizer.step()
 
+    def get_distance(self, x_pos):
+        # If the goomba is not found, return None
+        if self.goomba is None:
+            return None
+
+        # Calculate the distance between Mario and the goomba
+        # This calculates the wrong distance for some reason, maybe using wrong coordinates?
+        # Also need to add maybe a self.distance to use it to feed into the dense layers but thats for later
+        distance = abs(x_pos - self.goomba[0])
+        print(distance)
+
+        return distance

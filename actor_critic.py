@@ -142,6 +142,10 @@ class Agent(object):
     def __init__(self, alpha, beta, input_dims, gamma=0.90, n_actions=7, layer1_size=64, layer2_size=64):
         self.input_dims = input_dims
         self.log_probs = None
+        self.actor_loss = None
+        self.critic_loss1 = None
+        self.critic_loss2 = None
+        self.critic_loss3 = None
         self.gamma = gamma
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
@@ -254,6 +258,11 @@ class Agent(object):
         critic_loss2 = critic_loss2.mean()
         critic_loss3 = critic_loss3.mean()
 
+        self.actor_loss = actor_loss
+        self.critic_loss1 = critic_loss1
+        self.critic_loss2 = critic_loss2
+        self.critic_loss3 = critic_loss3
+
         # Perform the backward pass on the scalar actor_loss
         actor_loss.backward(retain_graph=True)
         self.actor.optimizer.step()
@@ -270,3 +279,4 @@ class Agent(object):
 
         critic_loss3.backward(retain_graph=True)
         self.critic3.optimizer.step()
+

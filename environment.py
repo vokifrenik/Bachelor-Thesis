@@ -72,8 +72,18 @@ for i in range(num_episodes):
 
     env.close()
 
-    # Save the model
-    agent.save_models()
+    # Save the model every 20 episodes
+    if i % 20 == 0:
+        T.save({
+            'epoch': i,
+            'model_state_dict': agent.state_dict(),
+            'optimizer_state_dict': agent.optimizer.state_dict(),
+            'actor_loss': agent.actor_loss,
+            'critic_loss1': agent.critic_loss1,
+            'critic_loss2': agent.critic_loss2,
+            'critic_loss3': agent.critic_loss3
+            }, 'C:\Bachelor Thesis')
+
 
     score_history.append(score)
     print('episode ', i, 'score %.2f' % score, 'deaths in this episode', current_episode_deaths, 'total deaths', deaths,

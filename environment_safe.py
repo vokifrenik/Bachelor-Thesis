@@ -8,7 +8,7 @@ from nes_py.wrappers import JoypadSpace
 from gym.wrappers import GrayScaleObservation
 from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
-from actor_critic import Agent
+from actor_critic_safe import Agent
 
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
@@ -47,6 +47,9 @@ for i in range(num_episodes):
 
         action = agent.choose_action(state)
         next_state, reward, done, info = env.step(action)
+
+        # get x-pos of mario from info
+        x_pos = info['x_pos']
 
         # Check if Mario died
         if done:  

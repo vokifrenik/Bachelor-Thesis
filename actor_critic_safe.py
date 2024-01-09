@@ -33,7 +33,7 @@ def find_object(self, state):
     result = cv2.matchTemplate(state, small_image_gray, cv2.TM_CCOEFF_NORMED)
 
     # Set a threshold
-    threshold = 0.4
+    threshold = 0.47
 
     # Find where the match is
     locations = np.where(result >= threshold)
@@ -41,9 +41,20 @@ def find_object(self, state):
     # Extract the coordinates of the match
     locations = list(zip(*locations[::-1]))
 
+    # Draw bounding box
+    w, h = small_image_gray.shape[::-1]  # Width and height of the template
+    for loc in locations:
+        top_left = (loc[1], loc[0])  # (x, y) coordinates
+        bottom_right = (top_left[0] + w, top_left[1] + h)
+        cv2.rectangle(state, top_left, bottom_right, (0, 255, 0), 2)
+
+    
+
     # If it exists return coordinates otherwise return None
     if locations:
         self.goomba = locations[0]
+        # Show the image
+        #plt.imshow(state)
         return locations[0]
     else:
         self.goomba = None
@@ -287,6 +298,8 @@ class Agent(object):
         # This calculates the wrong distance for some reason, maybe using wrong coordinates?
         # Also need to add maybe a self.distance to use it to feed into the dense layers but thats for later
         distance = abs(x_pos - self.goomba[0])
-        print(distance)
+        ic(x_pos)
+        ic(self.goomba[0])
+        ic(distance)
 
         return distance

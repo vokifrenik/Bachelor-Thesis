@@ -47,9 +47,11 @@ for i in range(num_episodes):
 
         action = agent.choose_action(state, 1)
         next_state, reward, done, info = env.step(action)
+        #ic(info)
+        #ic(state.shape)
 
         # get x-pos of mario from info
-        x_pos = info['x_pos']
+        x_pos = info['x_pos_screen']
 
         agent.get_distance(x_pos)
 
@@ -66,7 +68,7 @@ for i in range(num_episodes):
         score += reward
         print("score", score)
         print("reward", reward)
-        print("deaths", deaths)
+        print("deaths", current_episode_deaths)
 
         agent.learn(state, reward, next_state, done)
 

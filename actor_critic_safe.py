@@ -158,6 +158,7 @@ class Agent(object):
         self.critic_loss2 = None
         self.critic_loss3 = None
         self.goomba = None
+        self.distance = None
         self.gamma = gamma
         self.n_actions = n_actions
         self.actor = GeneralNetwork(alpha, input_dims[0], layer1_size, layer2_size, output_dims=2)
@@ -302,4 +303,4 @@ class Agent(object):
         ic(self.goomba[0])
         ic(distance)
 
-        return distance
+        self.distance = distance

@@ -15,12 +15,14 @@ from torch.distributions.categorical import Categorical
 def find_object(self, state):
     # Load the images
     # Convert the first frame of the tensor to numpy array
-    state = state[0].cpu().detach().numpy()
+    #state = state[0].cpu().detach().numpy()
+    state = state[0].cuda().detach().cpu().numpy()
 
     # Convert NumPy array to image
     #large_image_gray = Image.fromarray(state)
     #ic(large_image_gray)
-    small_image = cv2.imread('C:\Bachelor Thesis\Bachelor-Thesis\images\GuillaumeGoomb.png')
+    #small_image = cv2.imread('C:\Bachelor Thesis\Bachelor-Thesis\images\GuillaumeGoomb.png')
+    small_image = cv2.imread('GuillaumeGoomb.PNG')
 
     # Convert to grayscale
     small_image_gray = cv2.cvtColor(small_image, cv2.COLOR_BGR2GRAY)
@@ -81,7 +83,7 @@ class GeneralNetwork(nn.Module):
 
         # Common fully connected layer
         ## Freeze this layer and then update the heads separately and vice versa
-        self.fc = nn.Linear(3477, fc1_dims)
+        self.fc = nn.Linear(3477 + 1, fc1_dims)
         # self.fc = nn.Linear(fc2_dims * 1 * 1, fc1_dims)
         self.relu_fc = nn.ReLU()
 
@@ -93,7 +95,7 @@ class GeneralNetwork(nn.Module):
         self.value_layer = nn.Linear(fc1_dims, 1)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        self.device = 'cpu'
+        self.device = 'cuda'
         self.to(self.device)
 
         self.apply(self.init_weights)
@@ -103,36 +105,40 @@ class GeneralNetwork(nn.Module):
             init.xavier_uniform_(m.weight)
             m.bias.data.fill_(0.01)
 
-    def forward_actor(self, x):
-        #ic(x)
+    def forward_actor(self, x, distance):
         x = F.relu(self.conv1(x))
-        #ic(x)
         x = self.pool1(x)
-        #ic(x)
         x = F.relu(self.conv2(x))
-        #ic(x)
         x = self.pool2(x)
-        #ic(x)
         x = x.view(x.size(0), -1)
-        #ic(x)
-        x_fc = F.relu(self.fc(x))
-        #ic(x_fc)
+
+        # Handle distance - reshape and concatenate
+        # Check if distance is None and replace it with a default value (e.g., a large number)
+        if distance is None:
+            distance = 1000  # or any other value that makes sense in your context
+        distance = T.tensor([distance], dtype=T.float32).to(self.device)
+        
+           # Convert distance to a tensor and adjust its dimensions
+        distance = distance.view(-1, 1)  # Reshape to [batch_size, 1]
+    
+        # Make sure distance has the same batch size as x
+        if distance.size(0) != x.size(0):
+            distance = distance.expand(x.size(0), -1)
+        #ic(distance.shape)
+        #ic(x.shape)
+        # Concatenate the flattened image tensor and the distance tensor
+        x_fc = T.cat((x, distance), dim=1)
+
+        x_fc = F.relu(self.fc(x_fc))
         mu = self.mu_layer(x_fc).squeeze(-1)
-        #ic(mu)
         log_sigma = self.log_sigma_layer(x_fc).squeeze(-1)
-
-        # Make sure the log_sigma is not too large or too small
         log_sigma = T.clamp(log_sigma, min=-20, max=2)
-        # Add a small value to prevent log(0)
         log_sigma = log_sigma + 1e-6
-
         sigma = T.exp(log_sigma)
-        #ic(sigma)
 
         return mu, sigma
 
-    def forward_critic(self, x):
-        # If x is not a tensor, convert it to a tensor
+    def forward_critic(self, x, distance):
         if not isinstance(x, T.Tensor):
             x = T.tensor(x, dtype=T.float32).to(self.device)
 
@@ -143,9 +149,24 @@ class GeneralNetwork(nn.Module):
 
         x = x.view(x.size(0), -1)
 
-        x_fc = self.relu_fc(self.fc(x))
+        # Handle distance - reshape and concatenate
+        # Check if distance is None and replace it with a default value
+        if distance is None:
+            distance = 1000  # or any other value that makes sense in your context
+        distance = T.tensor([distance], dtype=T.float32).to(self.device)
+
+        # Reshape to match batch size
+        distance = distance.view(-1, 1)  
+        # Make sure distance has the same batch size as x
+        if distance.size(0) != x.size(0):
+            distance = distance.expand(x.size(0), -1)
+        #ic(distance.shape)
+        #ic(x.shape)
+        x_fc = T.cat((x, distance), dim=1)  # Concatenate distance with the conv output
+
+        x_fc = self.relu_fc(self.fc(x_fc))
         value = self.value_layer(x_fc).squeeze(-1)
-        #ic(value)
+
         return value
 
 
@@ -167,7 +188,7 @@ class Agent(object):
         self.critic3 = GeneralNetwork(beta, input_dims[0], layer1_size, layer2_size, output_dims=1)
 
     def choose_action(self, state, temperature):
-        mu, sigma = self.actor.forward_actor(state)
+        mu, sigma = self.actor.forward_actor(state, self.distance)
 
         # Calculate the variance
         sigma_sq = sigma ** 2
@@ -195,10 +216,10 @@ class Agent(object):
         # Divide action by 10 to get the correct action and floor the value
         action = int(action / 10)
 
-        goomba = find_object(self, state)
+        find_object(self, state)
 
-        ic(goomba)
-        ic(action)
+        #ic(goomba)
+        #ic(action)
 
         # Reduce temperature to get more greedy 
         temperature = temperature * 0.9999
@@ -211,13 +232,13 @@ class Agent(object):
         self.critic2.optimizer.zero_grad()
         self.critic3.optimizer.zero_grad()
 
-        n_state_value1 = self.critic1.forward_critic(n_state)
-        n_state_value2 = self.critic2.forward_critic(n_state)
-        n_state_value3 = self.critic3.forward_critic(n_state)
+        n_state_value1 = self.critic1.forward_critic(n_state, self.distance)
+        n_state_value2 = self.critic2.forward_critic(n_state, self.distance)
+        n_state_value3 = self.critic3.forward_critic(n_state, self.distance)
 
-        state_value1 = self.critic1.forward_critic(state)
-        state_value2 = self.critic2.forward_critic(state)
-        state_value3 = self.critic3.forward_critic(state)
+        state_value1 = self.critic1.forward_critic(state, self.distance)
+        state_value2 = self.critic2.forward_critic(state, self.distance)
+        state_value3 = self.critic3.forward_critic(state, self.distance)
 
         # Calculate separate delta and loss for each critic
         delta1 = (reward + self.gamma * n_state_value1 * (1 - int(done)) - state_value1).mean()

@@ -1,5 +1,0 @@
-steps to get habrok working:
-- load python version
-- create python environment
-- install packages using requirements.txt (need to create the file first)
-- transfer the python files to the environment so they can be ran

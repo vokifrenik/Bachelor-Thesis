@@ -1,0 +1,54 @@
+/home2/s4310861/venvs/mario-env/lib/python3.10/site-packages/gym/wrappers/monitoring/video_recorder.py:9: DeprecationWarning: The distutils package is deprecated and slated for removal in Python 3.12. Use setuptools or check PEP 632 for potential alternatives
+  import distutils.spawn
+/home2/s4310861/venvs/mario-env/lib/python3.10/site-packages/gym/envs/registration.py:505: UserWarning: [33mWARN: The environment SuperMarioBros-v0 is out of date. You should consider upgrading to version `v3` with the environment ID `SuperMarioBros-v3`.[0m
+  logger.warn(
+[ WARN:0@5.253] global loadsave.cpp:248 findDecoder imread_('GuillaumeGoomb.png'): can't open/read file: check file path/integrity
+Traceback (most recent call last):
+  File "/home2/s4310861/venvs/mario-env/environment.py", line 48, in <module>
+    action = agent.choose_action(state, 1)
+  File "/home2/s4310861/venvs/mario-env/actor_critic.py", line 185, in choose_action
+    goomba = find_object(state)
+  File "/home2/s4310861/venvs/mario-env/actor_critic.py", line 28, in find_object
+    small_image_gray = cv2.cvtColor(small_image, cv2.COLOR_BGR2GRAY)
+cv2.error: OpenCV(4.8.1) /io/opencv/modules/imgproc/src/color.cpp:182: error: (-215:Assertion failed) !_src.empty() in function 'cvtColor'
+
+
+###############################################################################
+Hábrók Cluster
+Job 6827371 for user s4310861
+Finished at: Fri Jan 12 13:59:02 CET 2024
+
+Job details:
+============
+
+Job ID              : 6827371
+Name                : Mario_Long_test_run
+User                : s4310861
+Partition           : gpushort
+Nodes               : a100gpu3
+Number of Nodes     : 1
+Cores               : 1
+Number of Tasks     : 1
+State               : FAILED
+Submit              : 2024-01-12T13:58:32
+Start               : 2024-01-12T13:58:33
+End                 : 2024-01-12T13:59:02
+Reserved walltime   : 03:00:00
+Used walltime       : 00:00:29
+Used CPU time       : 00:00:05 (efficiency: 18.21%)
+% User (Computation): 83.98%
+% System (I/O)      : 16.00%
+Mem reserved        : 2G
+Max Mem (Node/step) : 0.00  (Node unknown, N/A)
+Full Max Mem usage  : 0.00 
+Total Disk Read     : 2.28K
+Total Disk Write    : 1.00 
+
+Acknowledgements:
+=================
+
+Please see this page for information about acknowledging Hábrók in your publications:
+
+https://wiki.hpc.rug.nl/habrok/introduction/scientific_output
+
+################################################################################

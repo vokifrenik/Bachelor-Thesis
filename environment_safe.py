@@ -3,12 +3,14 @@ import numpy as np
 import torch as T
 import gym
 import gym_super_mario_bros
-from icecream import ic
+#from icecream import ic
 from nes_py.wrappers import JoypadSpace
 from gym.wrappers import GrayScaleObservation
 from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from actor_critic_safe import Agent
+
+print(gym_super_mario_bros.__version__)
 
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
@@ -23,7 +25,14 @@ input_size = env.observation_space.shape
 # Create the Agent with the correct input_dims
 agent = Agent(0.0000005, 0.0000001, input_dims=input_size, gamma=0.95, n_actions=7, layer1_size=64, layer2_size=64)
 
+# Lists for storing scores and deaths
 score_history = []
+death_history = []
+
+# Lists for storing total scores and deaths for every 100th episode
+total_scores_100 = []
+total_deaths_100 = []
+
 num_episodes = 15000
 
 deaths = 0
@@ -51,6 +60,7 @@ for i in range(num_episodes):
 
         action = agent.choose_action(state, 1)
         next_state, reward, done, info = env.step(action)
+        print("info", info)
         #ic(info)
         #ic(state.shape)
 
@@ -118,12 +128,40 @@ for i in range(num_episodes):
             'critic_loss1': agent.critic_loss1,
             'critic_loss2': agent.critic_loss2,
             'critic_loss3': agent.critic_loss3
-            }, 'checkpoint.pth')
+            }, 'checkpoint_safe.pth')
+        
+    score_history.append(score)
+    death_history.append(current_episode_deaths)
+
+    if i % 100 == 0 and i != 0:
+        total_score_last_100 = sum(score_history[-100:])
+        total_deaths_last_100 = sum(death_history[-100:])
+        total_scores_100.append(total_score_last_100)
+        total_deaths_100.append(total_deaths_last_100)
 
 
     score_history.append(score)
-    print('episode ', i, 'score %.2f' % score, 'deaths in this episode', current_episode_deaths, 'total deaths', deaths,
-          '100 game average %.2f' % np.mean(score_history[-100:]))
+    print('episode ', i, 'score %.2f' % score, 'deaths in this episode', current_episode_deaths, 'total deaths', deaths)
 #death to mario
     
 env.close()
+
+with open('results.txt', 'w') as file:
+    file.write('Scores per Episode:\n')
+    for score in score_history:
+        file.write(str(score) + '\n')
+
+    file.write('\nDeaths per Episode:\n')
+    for death in death_history:
+        file.write(str(death) + '\n')
+
+    file.write('\nTotal Scores per 100 Episodes:\n')
+    for total_score in total_scores_100:
+        file.write(str(total_score) + '\n')
+
+    file.write('\nTotal Deaths per 100 Episodes:\n')
+    for total_death in total_deaths_100:
+        file.write(str(total_death) + '\n')
+
+    file.write('\nTotal Deaths:\n')
+    file.write(str(deaths) + '\n')

@@ -8,7 +8,7 @@ from nes_py.wrappers import JoypadSpace
 from gym.wrappers import GrayScaleObservation
 from gym.wrappers import FrameStack
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
-from actor_critic import Agent
+from actor_critic_no_ensemble import Agent
 
 # Setup environment
 env = gym_super_mario_bros.make('SuperMarioBros-v0')
@@ -64,6 +64,7 @@ for i in range(num_episodes):
         score += reward
         #print("score", score, "reward", reward, "deaths in episode", current_episode_deaths)
         print("######################")
+        print("NO ENSEMBLE")
         print("time", info['time'])
         print("action", action)
         print("score", score)
@@ -91,24 +92,20 @@ for i in range(num_episodes):
             done = True
 
     print('episode ', i, 'score %.2f' % score, 'deaths in this episode', current_episode_deaths, 'total deaths', deaths)
+          
     #why do you not see gumb_____________________________________________________________Miriow
+
     # Save the model every 20 episodes
     if i % 20 == 0:
         T.save({
             'epoch': i,
             'actor_weights': agent.actor_weights,
             'critic_weights1': agent.critic_weights1,
-            'critic_weights2': agent.critic_weights2,
-            'critic_weights3': agent.critic_weights3,
             'actor_optimizer': agent.actor_optimizer,
             'critic_optimizer1': agent.critic_optimizer1,
-            'critic_optimizer2': agent.critic_optimizer2,
-            'critic_optimizer3': agent.critic_optimizer3,
             'actor_loss': agent.actor_loss,
             'critic_loss1': agent.critic_loss1,
-            'critic_loss2': agent.critic_loss2,
-            'critic_loss3': agent.critic_loss3
-            }, 'checkpoint_base.pth')
+            }, 'checkpoint_no_ensemble.pth')
         
     deaths += current_episode_deaths
     score_history.append(score)
@@ -128,7 +125,7 @@ for i in range(num_episodes):
     
 env.close()
 
-with open('results.txt', 'w') as file:
+with open('results_no_ensemble.txt', 'w') as file:
     file.write('Scores per Episode:\n')
     for score in score_history:
         file.write(str(score) + '\n')
